@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { CodeBlock } from './CodeBlock';
-import { VibeCodePreview } from './vibecode';
+import { LiveAppPreview } from './vibecode';
 import { generateReactApp, GeneratedApp } from '@/lib/vibecode/generator';
-import { Code, FileCode, Palette, Play, Download, Copy, Check } from 'lucide-react';
+import { Code, FileCode, Palette, Play, Download, Copy, Check, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface GeneratedAppPreviewProps {
@@ -127,8 +126,12 @@ export function GeneratedAppPreview({ vibeCode, intent }: GeneratedAppPreviewPro
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="component" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="live" className="w-full">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="live" className="gap-1">
+              <Smartphone className="h-3 w-3" />
+              <span className="hidden sm:inline">Live</span>
+            </TabsTrigger>
             <TabsTrigger value="component" className="gap-1">
               <FileCode className="h-3 w-3" />
               <span className="hidden sm:inline">Componente</span>
@@ -141,11 +144,16 @@ export function GeneratedAppPreview({ vibeCode, intent }: GeneratedAppPreviewPro
               <Palette className="h-3 w-3" />
               <span className="hidden sm:inline">CSS</span>
             </TabsTrigger>
-            <TabsTrigger value="preview" className="gap-1">
+            <TabsTrigger value="code" className="gap-1">
               <Play className="h-3 w-3" />
-              <span className="hidden sm:inline">Preview</span>
+              <span className="hidden sm:inline">VibeCode</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* Live Preview Tab - Primary */}
+          <TabsContent value="live" className="mt-4">
+            <LiveAppPreview vibeCode={vibeCode} intent={intent} />
+          </TabsContent>
 
           <TabsContent value="component" className="mt-4">
             <div className="relative">
@@ -203,15 +211,14 @@ export function GeneratedAppPreview({ vibeCode, intent }: GeneratedAppPreviewPro
             </div>
           </TabsContent>
 
-          <TabsContent value="preview" className="mt-4">
+          <TabsContent value="code" className="mt-4">
             <div className="space-y-4">
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  <strong>Nota:</strong> Este preview demonstra a máquina de estados do VibeCode. 
-                  O componente gerado incluirá a UI completa com formulários, botões e feedback visual.
+                  <strong>VibeCode Original:</strong> A especificação declarativa que define os estados e a fricção do app.
                 </p>
               </div>
-              <VibeCodePreview vibeCode={vibeCode} title="Simulação do Estado" />
+              <CodeBlock code={vibeCode} title="VibeCode Specification" />
             </div>
           </TabsContent>
         </Tabs>
