@@ -61,43 +61,38 @@ const createScope = () => ({
 function transformCode(code: string): string {
   // Strip Markdown fences (```tsx ... ```)
   let transformed = code
-    .replace(/^```[a-zA-Z]*\s*/m, '')
-    .replace(/```\s*$/m, '');
+    .replace(/^```[a-zA-Z]*\n?/gm, '')
+    .replace(/```$/gm, '');
 
-  // Remove import statements - we provide everything in scope
-  transformed = transformed.replace(/^import\s+.*?from\s+['"].*?['"];?\s*$/gm, '');
+  // Remove ALL import statements (handles multi-line imports)
+  // Pattern 1: import ... from "...";
+  transformed = transformed.replace(/import\s+[\s\S]*?from\s*['"][^'"]+['"];?/g, '');
+  // Pattern 2: import "..."; (side-effect imports)
+  transformed = transformed.replace(/import\s+['"][^'"]+['"];?/g, '');
 
   // Remove export keywords
   transformed = transformed.replace(/export\s+default\s+/g, '');
-  transformed = transformed.replace(/export\s+(const|function|class)\s+/g, '$1 ');
+  transformed = transformed.replace(/export\s+(const|function|class|type|interface)\s+/g, '$1 ');
 
   // --- Naive TypeScript stripping (good enough for generated TSX) ---
   // Remove type aliases: type X = ...;
-  transformed = transformed.replace(/^\s*type\s+\w+\s*=\s*[\s\S]*?;\s*$/gm, '');
-  // Remove interfaces: interface X { ... }
-  transformed = transformed.replace(/^\s*interface\s+\w+\s*\{[\s\S]*?^\s*\}\s*$/gm, '');
+  transformed = transformed.replace(/^\s*type\s+\w+[^=]*=\s*[^;]+;/gm, '');
+  // Remove interfaces: interface X { ... } (handles multi-line)
+  transformed = transformed.replace(/interface\s+\w+\s*\{[^}]*\}/g, '');
   // Remove `as SomeType`
-  transformed = transformed.replace(/\s+as\s+[A-Za-z0-9_\[\]<>.,\s|&]+/g, '');
+  transformed = transformed.replace(/\s+as\s+[A-Za-z0-9_\[\]<>.,\s|&]+(?=[,;)\]}])/g, '');
   // Remove generic annotations in useState/useRef/etc: useState<Type>(
   transformed = transformed.replace(/(useState|useRef|useMemo|useCallback)\s*<[^>]+>\s*\(/g, '$1(');
-  // Remove simple parameter type annotations: (a: X, b: Y)
-  transformed = transformed.replace(/\(([^)]*)\)/g, (m) => {
-    // Don't touch empty or already simple
-    if (!m.includes(':')) return m;
-    // Remove colon annotations within params
-    return m.replace(/:\s*[A-Za-z0-9_\[\]<>.,\s|&]+(?=\s*[),=])/g, '');
-  });
   // Remove variable/const annotations: const x: X =
-  transformed = transformed.replace(/(const|let|var)\s+([A-Za-z0-9_]+)\s*:\s*[^=;]+(?=\s*=)/g, '$1 $2');
-  // Remove function return types: ) : X =>  OR ) : X { 
-  transformed = transformed.replace(/\)\s*:\s*[^=\{]+(?=\s*=>)/g, ')');
-  transformed = transformed.replace(/\)\s*:\s*[^\{]+(?=\s*\{)/g, ')');
+  transformed = transformed.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=]+(?=\s*=)/g, '$1 $2');
+  // Remove function return types: ): X => or ): X {
+  transformed = transformed.replace(/\)\s*:\s*[^{=>]+(?=\s*[{=])/g, ')');
+  // Remove parameter type annotations within parentheses
+  transformed = transformed.replace(/(\w+)\s*:\s*[A-Za-z0-9_\[\]<>|&\s]+(?=[,)])/g, '$1');
 
   // Find the component name (function ComponentName or const ComponentName)
   const functionMatch = transformed.match(/function\s+(\w+)/);
-  const constMatch = transformed.match(
-    /(?:const|let|var)\s+(\w+)\s*(?::\s*React\.FC[^=]*)?=\s*(?:\([^)]*\)|[^=])*=>/
-  );
+  const constMatch = transformed.match(/(?:const|let|var)\s+(\w+)\s*=\s*(?:\([^)]*\)\s*=>|\(\s*\)\s*=>|function)/);
 
   const componentName = functionMatch?.[1] || constMatch?.[1] || 'App';
 
