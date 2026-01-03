@@ -2,7 +2,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodeBlock } from "./CodeBlock";
-import { Users, Scale, Crown, Star } from "lucide-react";
+import { VibeCodePreview } from "./vibecode";
+import { Users, Scale, Crown, Star, Play } from "lucide-react";
 import type { Generation, Stage2Results, Stage3Results } from "@/lib/api";
 
 interface CouncilResultsProps {
@@ -159,7 +160,7 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
           </div>
         </TabsContent>
 
-        <TabsContent value="stage3" className="mt-6">
+        <TabsContent value="stage3" className="mt-6 space-y-6">
           <Card className="border-2 border-primary">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -180,7 +181,7 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
             <CardContent className="space-y-4">
               <CodeBlock 
                 code={stage3.finalCode}
-                title="Código PER Final"
+                title="Código VibeCode Final"
                 validation={stage3.validation}
               />
               
@@ -190,6 +191,27 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
               </div>
             </CardContent>
           </Card>
+
+          {/* Interactive VibeCode Preview */}
+          {stage3.validation.valid && (
+            <Card className="border-2 border-dashed border-primary/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Play className="h-5 w-5 text-primary" />
+                  Simulador Interativo
+                </CardTitle>
+                <CardDescription>
+                  Teste a máquina de estados gerada pelo VibeCode
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <VibeCodePreview 
+                  vibeCode={stage3.finalCode} 
+                  title="Estado Atual da Aplicação"
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
