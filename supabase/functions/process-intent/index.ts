@@ -11,130 +11,111 @@ const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-// PER Language Keywords and Validation Rules
-const PER_KEYWORDS = ['workflow', 'cell', 'type', 'retention', 'event', 'state', 'action', 'trigger', 'when', 'then', 'passive', 'reactive'];
-const PASSIVE_INDICATORS = ['aguarda', 'espera', 'monitora', 'observa', 'recebe', 'detecta', 'captura', 'reage'];
+// VibeCode Validation Rules (STRICT)
+const VALID_STATES = ['CANDIDATE', 'RUNNING', 'COOLING', 'DONE', 'ERROR'];
 
-// Personas for the Council
+// Personas for the Council - with STRICT VibeCode prompts
+const VIBECODE_EXAMPLE = `
+\`\`\`vibecode
+workflow NomeDoWorkflow
+
+type TIPO
+retention LONG
+
+on EVENTO_1 {
+  set state = CANDIDATE
+  set friction = 5
+}
+
+on EVENTO_2 {
+  set state = RUNNING
+  increase friction by 20
+}
+
+on EVENTO_3 {
+  set state = DONE
+  set friction = 10
+}
+
+on EVENTO_ERRO {
+  set state = ERROR
+  set friction = 100
+}
+\`\`\``;
+
+const VIBECODE_RULES = `
+**REGRAS ABSOLUTAS DO VIBECODE:**
+1. ✅ PERMITIDO: "set state =", "set friction =", "increase friction by"
+2. ❌ PROIBIDO: if, else, for, while, cell, trigger, when, event declarations, variáveis, cálculos, operações matemáticas (+, -, *, /), comparações, property access (x.y)
+3. Estados VÁLIDOS: CANDIDATE, RUNNING, COOLING, DONE, ERROR
+4. Friction: número entre 0 e 100
+5. Type: uma palavra em MAIÚSCULAS (ORDER, FINANCE, TICKET, etc)
+6. Retention: EPHEMERAL ou LONG
+
+**FORMATO OBRIGATÓRIO:**
+${VIBECODE_EXAMPLE}
+
+**IMPORTANTE:** 
+- Cada "on EVENTO { }" é independente e passivo
+- NÃO adicione: cell, state variables, trigger, when, cálculos, condicionais
+- Use APENAS a sintaxe mostrada no exemplo acima`;
+
 const PERSONAS = [
   {
     id: 'creative',
     name: 'Arquiteto Criativo',
     model: 'google/gemini-2.5-flash',
-    systemPrompt: `Você é um arquiteto de software CRIATIVO e INOVADOR. Sua especialidade é criar soluções elegantes e não-convencionais.
+    systemPrompt: `Você é um desenvolvedor CRIATIVO mas RIGOROSO com sintaxe. Gere soluções elegantes SEGUINDO EXATAMENTE as regras do VibeCode.
 
-Você gera código na linguagem PER (Passive Event-Reactive), uma linguagem declarativa para workflows.
+${VIBECODE_RULES}
 
-SINTAXE PER:
-- workflow NomeDoWorkflow { ... } - Define um workflow
-- cell NomeDaCelula { ... } - Define uma célula (componente)
-- type ENUM_VALUE - Tipo do workflow (ORDER, SUPPORT, IOT, ANALYTICS)
-- retention SHORT|MEDIUM|LONG - Tempo de retenção
-- event NomeEvento { campos } - Define eventos
-- state NomeEstado { campos } - Define estados
-- action NomeAcao { campos } - Define ações
-- trigger when CONDIÇÃO then AÇÃO - Regras reativas
-- passive EVENTO -> ESTADO - Transformações passivas
-
-REGRAS IMPORTANTES:
-1. Use nomes descritivos em português
-2. Seja criativo mas mantenha a sintaxe válida
-3. Prefira soluções elegantes e extensíveis
-4. Sempre inclua comentários explicativos
-
-Responda APENAS com código PER válido, sem explicações.`
+Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   },
   {
     id: 'conservative',
     name: 'Engenheiro Conservador',
     model: 'google/gemini-2.5-flash',
-    systemPrompt: `Você é um engenheiro de software CONSERVADOR e PRAGMÁTICO. Sua especialidade é criar soluções seguras e testadas.
+    systemPrompt: `Você é um desenvolvedor CONSERVADOR e CAUTELOSO. Gere soluções ESTRITAMENTE conforme especificado, sem adicionar features ou sintaxe extra.
 
-Você gera código na linguagem PER (Passive Event-Reactive), uma linguagem declarativa para workflows.
+${VIBECODE_RULES}
 
-SINTAXE PER:
-- workflow NomeDoWorkflow { ... } - Define um workflow
-- cell NomeDaCelula { ... } - Define uma célula
-- type ENUM_VALUE - Tipo (ORDER, SUPPORT, IOT, ANALYTICS)
-- retention SHORT|MEDIUM|LONG - Retenção
-- event NomeEvento { campos } - Eventos
-- state NomeEstado { campos } - Estados
-- action NomeAcao { campos } - Ações
-- trigger when CONDIÇÃO then AÇÃO - Regras
-- passive EVENTO -> ESTADO - Transformações
-
-REGRAS:
-1. Priorize segurança e validações
-2. Use padrões bem estabelecidos
-3. Evite complexidade desnecessária
-4. Inclua tratamento de erros
-
-Responda APENAS com código PER válido.`
+Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   },
   {
     id: 'efficient',
     name: 'Otimizador de Performance',
     model: 'google/gemini-2.5-flash',
-    systemPrompt: `Você é um especialista em PERFORMANCE e EFICIÊNCIA. Sua especialidade é criar soluções rápidas e otimizadas.
+    systemPrompt: `Você é um desenvolvedor focado em EFICIÊNCIA. Gere soluções MÍNIMAS e DIRETAS, sem complexidade desnecessária.
 
-Você gera código na linguagem PER (Passive Event-Reactive).
+${VIBECODE_RULES}
 
-SINTAXE PER:
-- workflow NomeDoWorkflow { ... }
-- cell NomeDaCelula { ... }
-- type ENUM_VALUE (ORDER, SUPPORT, IOT, ANALYTICS)
-- retention SHORT|MEDIUM|LONG
-- event, state, action, trigger, passive
-
-FOCO:
-1. Minimize operações redundantes
-2. Use estruturas eficientes
-3. Otimize para throughput
-4. Prefira processamento paralelo
-
-Responda APENAS com código PER válido.`
+Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   },
   {
     id: 'robust',
     name: 'Arquiteto de Resiliência',
     model: 'google/gemini-2.5-flash',
-    systemPrompt: `Você é um arquiteto de RESILIÊNCIA e ROBUSTEZ. Sua especialidade é criar soluções que nunca falham.
+    systemPrompt: `Você é um arquiteto focado em ROBUSTEZ. Gere soluções COMPLETAS mas SIMPLES, cobrindo todos os casos de erro.
 
-Você gera código na linguagem PER (Passive Event-Reactive).
+${VIBECODE_RULES}
 
-SINTAXE PER:
-- workflow NomeDoWorkflow { ... }
-- cell NomeDaCelula { ... }
-- type, retention, event, state, action, trigger, passive
-
-FOCO:
-1. Tratamento completo de erros
-2. Estados de fallback
-3. Recuperação automática
-4. Logging e monitoramento
-
-Responda APENAS com código PER válido.`
+Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   }
 ];
 
-// Chairman for synthesis
-const CHAIRMAN_PROMPT = `Você é o CHAIRMAN do conselho de IAs. Sua função é SINTETIZAR as melhores partes de múltiplas propostas de código.
+// Chairman for synthesis - STRICT
+const CHAIRMAN_PROMPT = `Você é o CHAIRMAN do conselho. Sua função é SINTETIZAR o MELHOR código VibeCode.
 
-Você receberá várias versões de código PER geradas por diferentes IAs, junto com avaliações cruzadas.
+**REGRA DE OURO:** Use APENAS sintaxe VibeCode válida!
 
-Sua tarefa:
-1. Analisar os pontos fortes de cada proposta
-2. Identificar os padrões mais robustos
-3. Combinar as melhores ideias
-4. Produzir um código FINAL otimizado
+${VIBECODE_RULES}
 
-O código final deve:
-- Ser sintaticamente válido em PER
-- Incorporar as melhores práticas identificadas
-- Ser elegante e eficiente
-- Incluir comentários explicativos
+Analise as propostas recebidas e produza um código FINAL que:
+1. Siga EXATAMENTE a sintaxe do exemplo
+2. Combine as melhores ideias
+3. NÃO adicione sintaxe inventada (cell, trigger, when, variáveis, cálculos)
 
-Responda APENAS com o código PER final sintetizado.`;
+Responda APENAS com o código VibeCode final.`;
 
 // Helper to call Lovable AI
 async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<string> {
@@ -150,6 +131,7 @@ async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
+      temperature: 0.3, // Lower temperature for more consistent output
     }),
   });
 
@@ -163,54 +145,187 @@ async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<
   return data.choices[0].message.content;
 }
 
-// Validate PER code
-function validatePERCode(code: string): { valid: boolean; errors: string[]; warnings: string[] } {
+// STRICT VibeCode Validator
+function validatePERCode(code: string): { valid: boolean; errors: string[]; warnings: string[]; rulesPassed: number; totalRules: number } {
   const errors: string[] = [];
   const warnings: string[] = [];
+  let rulesPassed = 0;
+  const totalRules = 8;
 
-  // Check for workflow declaration
-  if (!code.includes('workflow')) {
-    errors.push('Código deve conter declaração de workflow');
+  // PER-001: Workflow declaration required
+  if (/^\s*workflow\s+[A-Za-z_][A-Za-z0-9_]*/m.test(code)) {
+    rulesPassed++;
+  } else {
+    errors.push('PER-001: Falta declaração de workflow');
   }
 
-  // Check for passive indicators
-  const hasPassiveIndicator = PASSIVE_INDICATORS.some(indicator => 
-    code.toLowerCase().includes(indicator)
-  );
-  if (!hasPassiveIndicator) {
-    warnings.push('Código não contém indicadores de passividade explícitos');
+  // PER-002: Type declaration required
+  if (/^\s*type\s+[A-Z_]+/m.test(code)) {
+    rulesPassed++;
+  } else {
+    errors.push('PER-002: Falta declaração de type (ex: type ORDER)');
   }
 
-  // Check for basic structure
-  const hasBasicStructure = PER_KEYWORDS.some(keyword => code.includes(keyword));
-  if (!hasBasicStructure) {
-    errors.push('Código não segue sintaxe PER básica');
+  // PER-003: Retention required
+  if (/^\s*retention\s+(EPHEMERAL|LONG)/m.test(code)) {
+    rulesPassed++;
+  } else {
+    errors.push('PER-003: Falta retention (EPHEMERAL ou LONG)');
   }
 
-  // Check balanced braces
+  // PER-004: Valid states only
+  const stateAssignments = code.match(/set\s+state\s*=\s*([A-Z_]+)/g);
+  let hasInvalidState = false;
+  if (stateAssignments) {
+    stateAssignments.forEach(match => {
+      const state = match.match(/=\s*([A-Z_]+)/)?.[1];
+      if (state && !VALID_STATES.includes(state)) {
+        hasInvalidState = true;
+        errors.push(`PER-004: Estado inválido: ${state}. Válidos: ${VALID_STATES.join(', ')}`);
+      }
+    });
+  }
+  if (!hasInvalidState) rulesPassed++;
+
+  // PER-005: Passive commands exist
+  const hasSetState = /set\s+state\s*=/.test(code);
+  const hasSetFriction = /set\s+friction\s*=/.test(code);
+  const hasIncreaseFriction = /increase\s+friction\s+by/.test(code);
+  if (hasSetState || hasSetFriction || hasIncreaseFriction) {
+    rulesPassed++;
+  } else {
+    errors.push('PER-005: Nenhum comando passivo encontrado (set state, set friction, increase friction)');
+  }
+
+  // PER-006: Friction range 0-100
+  const frictionValues = code.match(/friction\s*=\s*(\d+)/g);
+  const frictionIncreases = code.match(/increase\s+friction\s+by\s+(\d+)/g);
+  let hasInvalidFriction = false;
+  frictionValues?.forEach(match => {
+    const value = parseInt(match.match(/=\s*(\d+)/)?.[1] || '0');
+    if (value < 0 || value > 100) {
+      hasInvalidFriction = true;
+      errors.push(`PER-006: Friction inválido: ${value} (deve ser 0-100)`);
+    }
+  });
+  frictionIncreases?.forEach(match => {
+    const value = parseInt(match.match(/by\s+(\d+)/)?.[1] || '0');
+    if (value < 0 || value > 100) {
+      hasInvalidFriction = true;
+      errors.push(`PER-006: Increment de friction inválido: ${value} (deve ser 0-100)`);
+    }
+  });
+  if (!hasInvalidFriction) rulesPassed++;
+
+  // PER-007: Event handlers exist
+  if (/^\s*on\s+[A-Z_]+\s*\{/m.test(code)) {
+    rulesPassed++;
+  } else {
+    errors.push('PER-007: Falta handlers de evento (on EVENTO { })');
+  }
+
+  // PER-008: NO ACTIVE LOGIC (STRICT!)
+  const forbiddenPatterns = [
+    { pattern: /\bif\s*\(/i, name: 'if statements' },
+    { pattern: /\belse\s*\{/i, name: 'else statements' },
+    { pattern: /\bfor\s*\(/i, name: 'for loops' },
+    { pattern: /\bwhile\s*\(/i, name: 'while loops' },
+    { pattern: /\bexecute\s*\(/i, name: 'execute calls' },
+    { pattern: /\bawait\s+/i, name: 'await statements' },
+    { pattern: /\bfunction\s+/i, name: 'function declarations' },
+    { pattern: /\breturn\s+/i, name: 'return statements' },
+    { pattern: /\bcell\s+\w+/i, name: 'cell declarations' },
+    { pattern: /\btrigger\s+\w+/i, name: 'trigger statements' },
+    { pattern: /\bwhen\s+/i, name: 'when conditions' },
+    { pattern: /\bstate\s+\w+\s+(STRING|DECIMAL|BOOLEAN|INT|NUMBER)/i, name: 'state variable declarations' },
+    { pattern: /\bevent\s+[A-Z_]+\s*\{/i, name: 'event declarations' },
+    { pattern: /\baction\s+[A-Z_]+/i, name: 'action declarations' },
+    { pattern: /\w+\s*\+\s*\w+/i, name: 'addition operations' },
+    { pattern: /\w+\s*-\s*\w+/i, name: 'subtraction operations' },
+    { pattern: /\w+\s*\*\s*\w+/i, name: 'multiplication operations' },
+    { pattern: /\w+\s*\/\s*\w+/i, name: 'division operations' },
+    { pattern: /\w+\.\w+/i, name: 'property access' },
+    { pattern: /==|!=|<=|>=|<|>/i, name: 'comparison operators' },
+  ];
+
+  const foundForbidden: string[] = [];
+  forbiddenPatterns.forEach(({ pattern, name }) => {
+    if (pattern.test(code)) {
+      foundForbidden.push(name);
+    }
+  });
+
+  if (foundForbidden.length > 0) {
+    errors.push(`PER-008: Lógica ativa detectada: ${foundForbidden.join(', ')}. VibeCode permite apenas: "set state =", "set friction =", "increase friction by"`);
+  } else {
+    rulesPassed++;
+  }
+
+  // Balanced braces check (warning only)
   const openBraces = (code.match(/{/g) || []).length;
   const closeBraces = (code.match(/}/g) || []).length;
   if (openBraces !== closeBraces) {
-    errors.push(`Chaves desbalanceadas: ${openBraces} abertas, ${closeBraces} fechadas`);
+    warnings.push(`Chaves desbalanceadas: ${openBraces} abertas, ${closeBraces} fechadas`);
   }
 
   return {
     valid: errors.length === 0,
     errors,
-    warnings
+    warnings,
+    rulesPassed,
+    totalRules
   };
 }
 
-// Stage 1: Parallel Generation
+// Stage 1: Parallel Generation with STRICT prompts
 async function stage1Generation(intent: string): Promise<any[]> {
   console.log('Stage 1: Starting parallel generation...');
   
+  const userPrompt = `**INTENÇÃO DO USUÁRIO:**
+${intent}
+
+**INSTRUÇÕES:**
+1. Identifique os principais EVENTOS mencionados na intenção
+2. Para cada evento, defina estado e friction apropriados
+3. Use APENAS a sintaxe VibeCode: workflow, type, retention, on EVENTO { set state / set friction / increase friction }
+4. NÃO adicione: cell, state variables, trigger, when, cálculos, condicionais, operações matemáticas
+
+**RESPONDA EXATAMENTE ASSIM:**
+
+\`\`\`vibecode
+workflow NomeDescritivo
+
+type TIPO
+retention LONG
+
+on EVENTO_1 {
+  set state = ESTADO
+  set friction = NUMERO
+}
+
+on EVENTO_2 {
+  set state = ESTADO
+  increase friction by NUMERO
+}
+\`\`\`
+
+**IMPORTANTE:** Siga EXATAMENTE o formato acima. Não invente sintaxe nova!`;
+
   const generationPromises = PERSONAS.map(async (persona) => {
     try {
-      const code = await callLovableAI(
-        persona.systemPrompt,
-        `Gere código PER para: ${intent}`
-      );
+      const response = await callLovableAI(persona.systemPrompt, userPrompt);
+      
+      // Extract code from response (handle ```vibecode or ``` blocks)
+      let code = response;
+      const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
+      if (vibeCodeMatch) {
+        code = vibeCodeMatch[1].trim();
+      } else {
+        const anyCodeMatch = response.match(/```\s*\n?([\s\S]+?)\n?```/);
+        if (anyCodeMatch) {
+          code = anyCodeMatch[1].trim();
+        }
+      }
       
       const validation = validatePERCode(code);
       
@@ -228,7 +343,7 @@ async function stage1Generation(intent: string): Promise<any[]> {
         personaId: persona.id,
         personaName: persona.name,
         code: `// Erro ao gerar código: ${errorMessage}`,
-        validation: { valid: false, errors: [errorMessage], warnings: [] },
+        validation: { valid: false, errors: [errorMessage], warnings: [], rulesPassed: 0, totalRules: 8 },
         timestamp: new Date().toISOString()
       };
     }
@@ -237,33 +352,45 @@ async function stage1Generation(intent: string): Promise<any[]> {
   return Promise.all(generationPromises);
 }
 
-// Stage 2: Cross Evaluation
+// Stage 2: Cross Evaluation with VibeCode-aware criteria
 async function stage2Evaluation(generations: any[]): Promise<any> {
   console.log('Stage 2: Starting cross evaluation...');
   
-  const evaluationPrompt = `Avalie os seguintes códigos PER gerados por diferentes IAs.
+  // Include validation results in evaluation
+  const validGenerations = generations.filter(g => g.validation?.valid);
+  const invalidCount = generations.length - validGenerations.length;
+  
+  if (invalidCount > 0) {
+    console.log(`⚠️ ${invalidCount}/${generations.length} codes failed validation`);
+  }
+  
+  const evaluationPrompt = `Avalie os seguintes códigos VibeCode.
 
-Para cada código, atribua uma nota de 1-10 em:
-- Clareza: Quão fácil é entender?
-- Completude: Atende todos os requisitos?
-- Elegância: Quão elegante é a solução?
-- Robustez: Quão resiliente é?
+**CRITÉRIOS DE AVALIAÇÃO:**
+1. Validade: Segue EXATAMENTE a sintaxe VibeCode? (workflow, type, retention, on EVENTO, set state/friction)
+2. Simplicidade: Usa APENAS comandos permitidos? Sem cell/trigger/when/cálculos?
+3. Completude: Cobre todos os eventos importantes da intenção?
+4. Clareza: Nomes de eventos são descritivos?
+
+**IMPORTANTE:** Códigos com cell, trigger, when, cálculos, ou variáveis são INVÁLIDOS!
 
 Códigos para avaliar:
 ${generations.map((g, i) => `
-=== PROPOSTA ${i + 1} (${g.personaName}) ===
+=== PROPOSTA ${i + 1} (${g.personaName}) - Validação: ${g.validation?.valid ? '✅ VÁLIDO' : '❌ INVÁLIDO: ' + (g.validation?.errors?.[0] || 'erro')} ===
+\`\`\`vibecode
 ${g.code}
+\`\`\`
 `).join('\n')}
 
-Responda em JSON com formato:
+Responda em JSON:
 {
   "evaluations": [
     {
       "proposalIndex": 0,
-      "scores": { "clareza": 8, "completude": 7, "elegancia": 9, "robustez": 6 },
-      "totalScore": 30,
-      "strengths": ["ponto forte 1", "ponto forte 2"],
-      "weaknesses": ["ponto fraco 1"]
+      "scores": { "validade": 10, "simplicidade": 8, "completude": 7, "clareza": 9 },
+      "totalScore": 34,
+      "strengths": ["ponto forte"],
+      "weaknesses": ["ponto fraco"]
     }
   ],
   "ranking": [0, 2, 1, 3],
@@ -272,61 +399,124 @@ Responda em JSON com formato:
 
   try {
     const evaluationResult = await callLovableAI(
-      'Você é um avaliador imparcial de código. Responda APENAS em JSON válido.',
+      'Você é um avaliador ESPECIALISTA em VibeCode. Penalize códigos que usam sintaxe inválida (cell, trigger, when, cálculos). Responda APENAS em JSON válido.',
       evaluationPrompt
     );
     
     // Try to parse JSON from response
     const jsonMatch = evaluationResult.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Adjust ranking to prioritize valid codes
+      if (validGenerations.length > 0 && parsed.ranking) {
+        const validIndices = generations.map((g, i) => g.validation?.valid ? i : -1).filter(i => i >= 0);
+        const invalidIndices = generations.map((g, i) => !g.validation?.valid ? i : -1).filter(i => i >= 0);
+        parsed.ranking = [...validIndices, ...invalidIndices];
+      }
+      
+      return parsed;
     }
     
     return {
-      evaluations: generations.map((_, i) => ({
+      evaluations: generations.map((g, i) => ({
         proposalIndex: i,
-        scores: { clareza: 7, completude: 7, elegancia: 7, robustez: 7 },
-        totalScore: 28,
-        strengths: ['Código válido'],
-        weaknesses: []
+        scores: { validade: g.validation?.valid ? 10 : 0, simplicidade: 7, completude: 7, clareza: 7 },
+        totalScore: g.validation?.valid ? 31 : 21,
+        strengths: g.validation?.valid ? ['Código válido'] : [],
+        weaknesses: g.validation?.errors || []
       })),
-      ranking: generations.map((_, i) => i),
-      recommendation: 'Todas as propostas são válidas.'
+      ranking: generations.map((_, i) => i).sort((a, b) => 
+        (generations[b].validation?.valid ? 1 : 0) - (generations[a].validation?.valid ? 1 : 0)
+      ),
+      recommendation: 'Ranking ajustado pela validação VibeCode.'
     };
   } catch (error) {
     console.error('Evaluation error:', error);
     return {
       evaluations: [],
-      ranking: [0, 1, 2, 3],
-      recommendation: 'Erro na avaliação automática.'
+      ranking: generations.map((_, i) => i).sort((a, b) => 
+        (generations[b].validation?.valid ? 1 : 0) - (generations[a].validation?.valid ? 1 : 0)
+      ),
+      recommendation: 'Erro na avaliação. Ranking por validação.'
     };
   }
 }
 
-// Stage 3: Synthesis by Chairman
+// Stage 3: Synthesis by Chairman - STRICT VibeCode
 async function stage3Synthesis(intent: string, generations: any[], evaluation: any): Promise<any> {
   console.log('Stage 3: Starting synthesis...');
   
-  const synthesisPrompt = `INTENÇÃO ORIGINAL: ${intent}
+  // Filter to only valid codes if available
+  const validGenerations = generations.filter(g => g.validation?.valid);
+  const codesToUse = validGenerations.length > 0 ? validGenerations : generations;
+  
+  const synthesisPrompt = `**INTENÇÃO ORIGINAL:** ${intent}
 
-PROPOSTAS GERADAS:
-${generations.map((g, i) => `
-=== PROPOSTA ${i + 1} (${g.personaName}) - Score: ${evaluation.evaluations?.[i]?.totalScore || 'N/A'} ===
-Pontos Fortes: ${evaluation.evaluations?.[i]?.strengths?.join(', ') || 'N/A'}
-Código:
+**PROPOSTAS VÁLIDAS:**
+${codesToUse.map((g, i) => `
+=== ${g.personaName} (Score: ${evaluation.evaluations?.find((e: any) => e.proposalIndex === generations.indexOf(g))?.totalScore || 'N/A'}) ===
+\`\`\`vibecode
 ${g.code}
+\`\`\`
 `).join('\n')}
 
-RECOMENDAÇÃO DO AVALIADOR: ${evaluation.recommendation || 'Sem recomendação'}
+**RECOMENDAÇÃO:** ${evaluation.recommendation || 'Escolha a melhor proposta'}
 
-Com base nas propostas acima, sintetize o MELHOR código PER possível, combinando as melhores ideias de cada proposta.`;
+**SUA TAREFA:**
+Combine as melhores ideias em um código VibeCode SIMPLES e VÁLIDO.
+
+**LEMBRE-SE:**
+- Use APENAS: workflow, type, retention, on EVENTO { set state / set friction / increase friction }
+- NÃO use: cell, trigger, when, variáveis, cálculos, comparações
+
+**RESPONDA APENAS COM O CÓDIGO:**
+
+\`\`\`vibecode
+workflow NomeDescritivo
+
+type TIPO
+retention LONG
+
+on EVENTO {
+  set state = ESTADO
+  set friction = NUMERO
+}
+\`\`\``;
 
   try {
-    const synthesizedCode = await callLovableAI(CHAIRMAN_PROMPT, synthesisPrompt);
-    const validation = validatePERCode(synthesizedCode);
+    const response = await callLovableAI(CHAIRMAN_PROMPT, synthesisPrompt);
+    
+    // Extract code from response
+    let finalCode = response;
+    const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
+    if (vibeCodeMatch) {
+      finalCode = vibeCodeMatch[1].trim();
+    } else {
+      const anyCodeMatch = response.match(/```\s*\n?([\s\S]+?)\n?```/);
+      if (anyCodeMatch) {
+        finalCode = anyCodeMatch[1].trim();
+      }
+    }
+    
+    const validation = validatePERCode(finalCode);
+    
+    // If chairman's code is invalid but we have valid codes, use the best valid one
+    if (!validation.valid && validGenerations.length > 0) {
+      console.log('⚠️ Chairman code invalid, using best valid proposal');
+      const bestValidIndex = evaluation.ranking?.find((i: number) => generations[i]?.validation?.valid) ?? 0;
+      const bestValid = generations[bestValidIndex];
+      return {
+        finalCode: bestValid.code,
+        validation: bestValid.validation,
+        chairman: 'fallback-best-valid',
+        reasoning: 'Usando melhor proposta válida (síntese do chairman foi inválida)',
+        timestamp: new Date().toISOString()
+      };
+    }
     
     return {
-      finalCode: synthesizedCode,
+      finalCode,
       validation,
       chairman: 'google/gemini-2.5-flash',
       reasoning: 'Síntese das melhores partes de cada proposta',
@@ -334,11 +524,12 @@ Com base nas propostas acima, sintetize o MELHOR código PER possível, combinan
     };
   } catch (error) {
     console.error('Synthesis error:', error);
-    // Fallback to best rated proposal
-    const bestIndex = evaluation.ranking?.[0] || 0;
+    // Fallback to best rated valid proposal
+    const bestValidIndex = evaluation.ranking?.find((i: number) => generations[i]?.validation?.valid);
+    const bestIndex = bestValidIndex ?? evaluation.ranking?.[0] ?? 0;
     return {
       finalCode: generations[bestIndex]?.code || '// Erro na síntese',
-      validation: generations[bestIndex]?.validation || { valid: false, errors: ['Synthesis failed'], warnings: [] },
+      validation: generations[bestIndex]?.validation || { valid: false, errors: ['Synthesis failed'], warnings: [], rulesPassed: 0, totalRules: 8 },
       chairman: 'fallback',
       reasoning: 'Usando melhor proposta individual devido a erro na síntese',
       timestamp: new Date().toISOString()
