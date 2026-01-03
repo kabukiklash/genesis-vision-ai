@@ -29,13 +29,11 @@ export function AppChat({ onModification, isLoading = false }: AppChatProps) {
   ]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, isOpen]);
 
   const handleSend = async () => {
     if (!input.trim() || sending || isLoading) return;
@@ -124,7 +122,7 @@ export function AppChat({ onModification, isLoading = false }: AppChatProps) {
         </div>
 
         {/* Messages */}
-        <ScrollArea ref={scrollRef} className="flex-1 p-4">
+        <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
             {messages.map((message) => (
               <div
@@ -153,6 +151,7 @@ export function AppChat({ onModification, isLoading = false }: AppChatProps) {
                 </div>
               </div>
             )}
+            <div ref={endRef} />
           </div>
         </ScrollArea>
 
