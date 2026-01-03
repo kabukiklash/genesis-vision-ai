@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { CodeBlock } from './CodeBlock';
-import { LiveAppPreview } from './vibecode';
+import { LiveAppPreview, FinancialAppPreview } from './vibecode';
 import { generateReactApp, GeneratedApp } from '@/lib/vibecode/generator';
 import { Code, FileCode, Palette, Play, Download, Copy, Check, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,10 +13,22 @@ interface GeneratedAppPreviewProps {
   intent: string;
 }
 
+function detectAppType(intent: string): 'financial' | 'generic' {
+  const lower = intent.toLowerCase();
+  const financialKeywords = [
+    'financ', 'gestão', 'dinheiro', 'receita', 'despesa', 'cartão', 'cartao',
+    'salário', 'salario', 'renda', 'economia', 'investimento', 'fatura',
+    'orçamento', 'orcamento', 'banco', 'conta', 'pagamento', 'gasto'
+  ];
+  return financialKeywords.some(kw => lower.includes(kw)) ? 'financial' : 'generic';
+}
+
 export function GeneratedAppPreview({ vibeCode, intent }: GeneratedAppPreviewProps) {
   const [generatedApp, setGeneratedApp] = useState<GeneratedApp | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+
+  const appType = useMemo(() => detectAppType(intent), [intent]);
 
   const handleGenerate = () => {
     setIsGenerating(true);
@@ -152,7 +164,11 @@ export function GeneratedAppPreview({ vibeCode, intent }: GeneratedAppPreviewPro
 
           {/* Live Preview Tab - Primary */}
           <TabsContent value="live" className="mt-4">
-            <LiveAppPreview vibeCode={vibeCode} intent={intent} />
+            {appType === 'financial' ? (
+              <FinancialAppPreview vibeCode={vibeCode} intent={intent} />
+            ) : (
+              <LiveAppPreview vibeCode={vibeCode} intent={intent} />
+            )}
           </TabsContent>
 
           <TabsContent value="component" className="mt-4">
