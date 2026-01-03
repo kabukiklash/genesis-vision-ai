@@ -2,3 +2,4 @@
 export * from './types';
 export * from './parser';
 export * from './interpreter';
+export * from './generator';

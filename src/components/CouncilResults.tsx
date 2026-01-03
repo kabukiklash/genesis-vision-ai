@@ -2,8 +2,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodeBlock } from "./CodeBlock";
-import { VibeCodePreview } from "./vibecode";
-import { Users, Scale, Crown, Star, Play } from "lucide-react";
+import { GeneratedAppPreview } from "./GeneratedAppPreview";
+import { Users, Scale, Crown, Star, Code } from "lucide-react";
 import type { Generation, Stage2Results, Stage3Results } from "@/lib/api";
 
 interface CouncilResultsProps {
@@ -21,8 +21,12 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
         <p className="text-muted-foreground">"{intent}"</p>
       </div>
 
-      <Tabs defaultValue="stage3" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="app" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="app" className="flex items-center gap-2">
+            <Code className="h-4 w-4" />
+            <span className="hidden sm:inline">App</span>
+          </TabsTrigger>
           <TabsTrigger value="stage1" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">1.</span> Geração
@@ -36,6 +40,29 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
             <span className="hidden sm:inline">3.</span> Síntese
           </TabsTrigger>
         </TabsList>
+
+        {/* App Generator Tab - Primary */}
+        <TabsContent value="app" className="mt-6">
+          {stage3.validation.valid ? (
+            <GeneratedAppPreview vibeCode={stage3.finalCode} intent={intent} />
+          ) : (
+            <Card className="border-destructive">
+              <CardHeader>
+                <CardTitle className="text-destructive">VibeCode Inválido</CardTitle>
+                <CardDescription>
+                  O código gerado contém erros e não pode ser transformado em app.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-sm text-destructive space-y-1">
+                  {stage3.validation.errors.map((error, i) => (
+                    <li key={i}>• {error}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="stage1" className="mt-6">
           <div className="grid gap-4 md:grid-cols-2">
@@ -192,26 +219,6 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
             </CardContent>
           </Card>
 
-          {/* Interactive VibeCode Preview */}
-          {stage3.validation.valid && (
-            <Card className="border-2 border-dashed border-primary/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Play className="h-5 w-5 text-primary" />
-                  Simulador Interativo
-                </CardTitle>
-                <CardDescription>
-                  Teste a máquina de estados gerada pelo VibeCode
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <VibeCodePreview 
-                  vibeCode={stage3.finalCode} 
-                  title="Estado Atual da Aplicação"
-                />
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
       </Tabs>
     </div>
