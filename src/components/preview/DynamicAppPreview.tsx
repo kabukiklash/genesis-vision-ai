@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CodeBlock } from '@/components/CodeBlock';
 import { AppChat } from '@/components/chat/AppChat';
+import { LiveCodeRenderer } from '@/components/preview/LiveCodeRenderer';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -281,25 +282,23 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
                     </div>
                   </div>
 
-                  {/* App Content - Rendered as HTML preview */}
+                  {/* App Content - Live Rendered */}
                   <div 
                     className={cn(
-                      'p-4 overflow-auto',
-                      viewMode === 'mobile' ? 'h-[600px]' : 'min-h-[500px]'
+                      'overflow-auto bg-background',
+                      viewMode === 'mobile' ? 'h-[600px]' : 'min-h-[500px] max-h-[700px]'
                     )}
                   >
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <div className="bg-muted/50 rounded-lg p-4 text-center">
-                        <Sparkles className="h-8 w-8 mx-auto mb-2 text-primary" />
-                        <p className="font-medium">Preview Renderizado</p>
-                        <p className="text-sm text-muted-foreground">
-                          O código React foi gerado. Veja a aba "Código" para copiar e usar no seu projeto.
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Use o chat flutuante para pedir modificações!
-                        </p>
+                    {generatedApp?.componentCode ? (
+                      <LiveCodeRenderer 
+                        code={generatedApp.componentCode} 
+                        className="p-4"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <p>Aguardando código gerado...</p>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
