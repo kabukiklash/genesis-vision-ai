@@ -1,11 +1,12 @@
-import { Loader2, Users, Scale, Crown } from "lucide-react";
+import { Loader2, Users, Scale, Crown, Zap } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 interface LoadingStagesProps {
   currentStage: number;
+  totalStages?: number;
 }
 
-const stages = [
+const councilStages = [
   {
     id: 1,
     title: "Geração Paralela",
@@ -26,16 +27,30 @@ const stages = [
   },
 ];
 
-export function LoadingStages({ currentStage }: LoadingStagesProps) {
-  const progress = (currentStage / 3) * 100;
+const directStages = [
+  {
+    id: 1,
+    title: "Geração Direta",
+    description: "IA gerando código...",
+    icon: Zap,
+  },
+];
+
+export function LoadingStages({ currentStage, totalStages = 3 }: LoadingStagesProps) {
+  const stages = totalStages === 1 ? directStages : councilStages;
+  const progress = (currentStage / totalStages) * 100;
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-8 p-8">
       <div className="text-center space-y-2">
         <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-        <h2 className="text-2xl font-bold">LLM Council em Ação</h2>
+        <h2 className="text-2xl font-bold">
+          {totalStages === 1 ? "Geração Direta" : "LLM Council em Ação"}
+        </h2>
         <p className="text-muted-foreground">
-          Processando sua intenção em 3 estágios...
+          {totalStages === 1 
+            ? "Gerando código diretamente..."
+            : "Processando sua intenção em 3 estágios..."}
         </p>
       </div>
 
@@ -75,7 +90,7 @@ export function LoadingStages({ currentStage }: LoadingStagesProps) {
               </div>
               <div>
                 <h3 className="font-semibold">
-                  Stage {stage.id}: {stage.title}
+                  {totalStages > 1 && `Stage ${stage.id}: `}{stage.title}
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {isComplete ? "✅ Concluído" : stage.description}

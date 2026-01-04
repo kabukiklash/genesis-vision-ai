@@ -50,9 +50,13 @@ export interface ProcessIntentResponse {
   stage3: Stage3Results;
 }
 
-export async function processIntent(intent: string): Promise<ProcessIntentResponse> {
+export interface ProcessIntentOptions {
+  skipCouncil?: boolean;
+}
+
+export async function processIntent(intent: string, options?: ProcessIntentOptions): Promise<ProcessIntentResponse> {
   const { data, error } = await supabase.functions.invoke('process-intent', {
-    body: { intent }
+    body: { intent, skipCouncil: options?.skipCouncil ?? false }
   });
 
   if (error) {
