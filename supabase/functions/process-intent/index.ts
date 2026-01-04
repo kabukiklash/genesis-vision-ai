@@ -537,13 +537,67 @@ on EVENTO {
   }
 }
 
+// Direct generation (skip council) - single AI call
+async function directGeneration(intent: string): Promise<any> {
+  console.log('Direct generation mode (council disabled)...');
+  
+  const userPrompt = `**INTENÇÃO DO USUÁRIO:**
+${intent}
+
+**INSTRUÇÕES:**
+1. Identifique os principais EVENTOS mencionados na intenção
+2. Para cada evento, defina estado e friction apropriados
+3. Use APENAS a sintaxe VibeCode: workflow, type, retention, on EVENTO { set state / set friction / increase friction }
+
+**RESPONDA EXATAMENTE ASSIM:**
+
+\`\`\`vibecode
+workflow NomeDescritivo
+
+type TIPO
+retention LONG
+
+on EVENTO_1 {
+  set state = ESTADO
+  set friction = NUMERO
+}
+
+on EVENTO_2 {
+  set state = ESTADO
+  increase friction by NUMERO
+}
+\`\`\``;
+
+  const response = await callLovableAI(PERSONAS[0].systemPrompt, userPrompt);
+  
+  let code = response;
+  const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
+  if (vibeCodeMatch) {
+    code = vibeCodeMatch[1].trim();
+  } else {
+    const anyCodeMatch = response.match(/```\s*\n?([\s\S]+?)\n?```/);
+    if (anyCodeMatch) {
+      code = anyCodeMatch[1].trim();
+    }
+  }
+  
+  const validation = validatePERCode(code);
+  
+  return {
+    code,
+    validation,
+    model: 'google/gemini-2.5-flash',
+    timestamp: new Date().toISOString()
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { intent, conversationId } = await req.json();
+    const { intent, conversationId, skipCouncil } = await req.json();
     
     if (!intent) {
       return new Response(
@@ -552,7 +606,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Processing intent:', intent);
+    console.log('Processing intent:', intent, skipCouncil ? '(direct mode)' : '(council mode)');
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
@@ -572,6 +626,58 @@ serve(async (req) => {
       convId = conv.id;
     }
 
+    // DIRECT MODE: Skip council, single AI call
+    if (skipCouncil) {
+      const directResult = await directGeneration(intent);
+      
+      // Create simplified response structure
+      const stage1Results = [{
+        personaId: 'direct',
+        personaName: 'Geração Direta',
+        code: directResult.code,
+        validation: directResult.validation,
+        timestamp: directResult.timestamp
+      }];
+      
+      const stage2Results = {
+        evaluations: [],
+        ranking: [0],
+        recommendation: 'Modo direto - sem avaliação cruzada'
+      };
+      
+      const stage3Results = {
+        finalCode: directResult.code,
+        validation: directResult.validation,
+        chairman: 'direct',
+        reasoning: 'Gerado diretamente sem conselho',
+        timestamp: directResult.timestamp
+      };
+      
+      // Save to DB
+      await supabase.from('council_results').insert({
+        conversation_id: convId,
+        stage: 1,
+        results: { generations: stage1Results }
+      });
+      
+      await supabase
+        .from('conversations')
+        .update({ status: 'completed' })
+        .eq('id', convId);
+      
+      return new Response(
+        JSON.stringify({
+          conversationId: convId,
+          stage1: stage1Results,
+          stage2: stage2Results,
+          stage3: stage3Results,
+          mode: 'direct'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // COUNCIL MODE: Full 3-stage process
     // Stage 1: Generation
     const stage1Results = await stage1Generation(intent);
     await supabase.from('council_results').insert({
@@ -607,7 +713,8 @@ serve(async (req) => {
         conversationId: convId,
         stage1: stage1Results,
         stage2: stage2Results,
-        stage3: stage3Results
+        stage3: stage3Results,
+        mode: 'council'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
