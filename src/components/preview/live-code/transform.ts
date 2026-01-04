@@ -30,23 +30,28 @@ function guessComponentName(transformed: string) {
 }
 
 /**
- * Turns user-provided TS/TSX/JSX into runnable JS that evaluates to a React component.
+ * Turns user-provided TS/TSX/JSX into runnable JS that, once executed,
+ * assigns the resulting React component into __LIVE_COMPONENT__.
  */
 export function compileLiveComponent(code: string) {
   const stripped = stripImportsExports(stripMarkdownFences(code));
   const componentName = guessComponentName(stripped);
 
-  const iife = `
-(function() {
+  // Important: sucrase may inject top-level declarations (e.g. const helpers).
+  // So we compile a *program* that assigns into a known variable, instead of
+  // expecting the compiled output to be a pure expression.
+  const program = `
+var __LIVE_COMPONENT__ = (function() {
 ${stripped}
 return ${componentName};
-})()
+})();
 `;
 
   // Compile TSX/JSX -> JS (so we don't get: Unexpected token '<')
-  const compiled = sucraseTransform(iife, {
+  const compiled = sucraseTransform(program, {
     transforms: ["typescript", "jsx"],
   }).code;
 
   return compiled;
 }
+

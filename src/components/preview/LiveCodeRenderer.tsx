@@ -38,12 +38,14 @@ export function LiveCodeRenderer({ code, className }: LiveCodeRendererProps) {
         `
 "use strict";
 try {
-  return ${compiledCode};
+  ${compiledCode}
+  return __LIVE_COMPONENT__;
 } catch (e) {
   throw new Error('Runtime error: ' + (e?.message ?? String(e)));
 }
 `
       );
+
 
       // Execute with scope values
       const Component = createComponent(...scopeValues);
