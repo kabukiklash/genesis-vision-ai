@@ -19,30 +19,39 @@ const Index = () => {
   const [councilEnabled, setCouncilEnabled] = useState(true);
 
   const handleSubmit = async (intent: string) => {
+    // Validação: rejeitar input vazio
+    if (!intent.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Por favor, descreva o sistema que deseja criar",
+        variant: "destructive",
+      });
+      return;
+    }
     setCurrentIntent(intent);
     setState("loading");
     setCurrentStage(1);
 
     try {
       // Simulate stage progression for UX (only if council enabled)
-      const stageInterval = councilEnabled 
+      const stageInterval = councilEnabled
         ? setInterval(() => {
             setCurrentStage((prev) => Math.min(prev + 1, 3));
           }, 5000)
         : null;
 
       const response = await processIntent(intent, { skipCouncil: !councilEnabled });
-      
+
       if (stageInterval) clearInterval(stageInterval);
       setCurrentStage(3);
-      
+
       setResults(response);
       setState("results");
       toast.success(councilEnabled ? "Código gerado pelo Council!" : "Código gerado diretamente!");
     } catch (error) {
       console.error("Error processing intent:", error);
       setState("input");
-      
+
       if (error instanceof Error) {
         if (error.message.includes("429")) {
           toast.error("Rate limit excedido. Tente novamente em alguns minutos.");
@@ -70,32 +79,28 @@ const Index = () => {
         {state === "input" && (
           <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6">
             <IntentInput onSubmit={handleSubmit} isLoading={false} />
-            
+
             {/* Council Toggle */}
             <div className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card/50">
-              <Zap className={`h-4 w-4 ${!councilEnabled ? 'text-primary' : 'text-muted-foreground'}`} />
-              <Label 
-                htmlFor="council-toggle" 
-                className={`text-sm cursor-pointer ${!councilEnabled ? 'text-foreground' : 'text-muted-foreground'}`}
+              <Zap className={`h-4 w-4 ${!councilEnabled ? "text-primary" : "text-muted-foreground"}`} />
+              <Label
+                htmlFor="council-toggle"
+                className={`text-sm cursor-pointer ${!councilEnabled ? "text-foreground" : "text-muted-foreground"}`}
               >
                 Direto
               </Label>
-              <Switch
-                id="council-toggle"
-                checked={councilEnabled}
-                onCheckedChange={setCouncilEnabled}
-              />
-              <Label 
-                htmlFor="council-toggle" 
-                className={`text-sm cursor-pointer ${councilEnabled ? 'text-foreground' : 'text-muted-foreground'}`}
+              <Switch id="council-toggle" checked={councilEnabled} onCheckedChange={setCouncilEnabled} />
+              <Label
+                htmlFor="council-toggle"
+                className={`text-sm cursor-pointer ${councilEnabled ? "text-foreground" : "text-muted-foreground"}`}
               >
                 Council
               </Label>
-              <Users className={`h-4 w-4 ${councilEnabled ? 'text-primary' : 'text-muted-foreground'}`} />
+              <Users className={`h-4 w-4 ${councilEnabled ? "text-primary" : "text-muted-foreground"}`} />
             </div>
-            
+
             <p className="text-xs text-muted-foreground max-w-md text-center">
-              {councilEnabled 
+              {councilEnabled
                 ? "Council: 4 IAs geram propostas em paralelo, avaliam e sintetizam (mais lento, mais robusto)"
                 : "Direto: 1 IA gera o código diretamente (mais rápido, para testes)"}
             </p>
@@ -110,15 +115,11 @@ const Index = () => {
 
         {state === "results" && results && (
           <div className="space-y-6">
-            <Button
-              variant="ghost"
-              onClick={handleReset}
-              className="mb-4"
-            >
+            <Button variant="ghost" onClick={handleReset} className="mb-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Nova Intenção
             </Button>
-            
+
             <CouncilResults
               stage1={results.stage1}
               stage2={results.stage2}
