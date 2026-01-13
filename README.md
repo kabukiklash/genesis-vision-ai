@@ -1,73 +1,144 @@
-# Welcome to your Lovable project
+# Genesis Vision AI
 
-## Project info
+Programação por intenção com LLM Council, VibeCode e geração automática de apps React.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Este repositório contém:
+- Frontend React (Vite + TypeScript + shadcn-ui)
+- Integração com Supabase (banco, Auth e Edge Functions)
+- Funções `process-intent` e `generate-app` para orquestrar o Council e gerar código
 
-## How can I edit this code?
+Para entender o conceito e a arquitetura:
+- Conceito: [`CONCEITO.md`](./CONCEITO.md)
+- Análise de mocks: [`RELATORIO_MOCK_DATA.md`](./RELATORIO_MOCK_DATA.md)
+- Plano de implementação: [`PLANO_IMPLEMENTACAO.md`](./PLANO_IMPLEMENTACAO.md)
+- Resumo do plano: [`RESUMO_PLANO.md`](./RESUMO_PLANO.md)
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## Requisitos
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- Node.js 18+ (recomendado via nvm)
+- npm (ou pnpm/yarn, se preferir adaptar os comandos)
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## Configuração de ambiente
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+As variáveis de ambiente são carregadas via Vite e validadas em `src/lib/env.ts`.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Crie um arquivo `.env.local` na raiz do projeto com o seguinte conteúdo:
 
-Follow these steps:
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sua-chave-publica
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Opcional: modo mock para desenvolvimento (usa dados locais em vez de chamar APIs)
+VITE_USE_MOCK_DATA=false
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Como obter as chaves no Supabase:
+1. Acesse `https://app.supabase.com`
+2. Selecione seu projeto
+3. Vá em **Settings > API**
+4. Copie:
+   - `Project URL` → `VITE_SUPABASE_URL`
+   - `anon public` key → `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-# Step 3: Install the necessary dependencies.
-npm i
+Se alguma variável estiver faltando ou inválida, o componente `EnvValidator` mostrará uma tela com instruções claras ao subir o app.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+---
+
+## Rodando o projeto localmente
+
+```bash
+# 1. Clonar o repositório
+git clone <SEU_GIT_URL>
+cd genesis-vision-ai
+
+# 2. Instalar dependências
+npm install
+
+# 3. Configurar .env.local (veja seção acima)
+
+# 4. Rodar ambiente de desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+O servidor padrão do Vite foi configurado para rodar em `http://localhost:8080`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## Supabase e Edge Functions
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Este projeto usa Supabase para:
+- Banco de dados (`conversations`, `council_results`, e futuras tabelas como `financial_data`, `app_states`, `intent_examples`)
+- Edge Functions:
+  - `process-intent`: orquestra o LLM Council e gera VibeCode
+  - `generate-app`: gera/atualiza o código React com base na intenção e no VibeCode
 
-## What technologies are used for this project?
+Para rodar/localizar as functions:
+- Código das functions: `supabase/functions/`
+- Configuração: `supabase/config.toml`
+- Migrações: `supabase/migrations/`
 
-This project is built with:
+As funções esperam que os seguintes secrets estejam configurados no projeto Supabase (via Dashboard ou CLI):
+- `LOVABLE_API_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Consulte `PLANO_IMPLEMENTACAO.md` para os detalhes da Fase 1 (Configuração) e Fase 2 (substituição de mocks).
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Tecnologias
 
-## Can I connect a custom domain to my Lovable project?
+- Vite + React + TypeScript
+- Tailwind CSS + shadcn-ui + Radix UI
+- Supabase (Postgres, Auth, Edge Functions)
+- Lovable AI Gateway (Gemini) para geração de VibeCode e código React
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Testes
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+O projeto inclui testes automatizados:
+
+```bash
+# Testes unitários (Vitest)
+npm run test
+
+# Testes com UI interativa
+npm run test:ui
+
+# Testes com cobertura
+npm run test:coverage
+
+# Testes E2E (Playwright)
+npm run test:e2e
+
+# Testes E2E com UI
+npm run test:e2e:ui
+```
+
+## CI/CD
+
+O projeto inclui pipelines GitHub Actions:
+- `.github/workflows/ci.yml` - Lint, testes, build e deploy
+- `.github/workflows/supabase-migrations.yml` - Migrações do Supabase
+
+## Próximos passos de desenvolvimento
+
+O plano de evolução do projeto está descrito em:
+- [`PLANO_IMPLEMENTACAO.md`](./PLANO_IMPLEMENTACAO.md)
+- [`RESUMO_PLANO.md`](./RESUMO_PLANO.md)
+
+**Status das fases:**
+- ✅ Fase 1: Configuração e setup (env, Supabase, documentação)
+- ✅ Fase 2: Substituição de dados mockados críticos
+- ✅ Fase 3: Autenticação e segurança (Auth + RLS)
+- ✅ Fase 4: Melhorias de UX
+- ✅ Fase 5: Testes (unitários, integração, E2E)
+- ✅ Fase 6: Performance e observabilidade
+- ✅ Fase 7: Deploy e CI/CD
+
+Use esses arquivos como guia para priorizar as próximas tarefas.

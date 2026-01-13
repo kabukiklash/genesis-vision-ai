@@ -608,14 +608,42 @@ serve(async (req) => {
 
     console.log('Processing intent:', intent, skipCouncil ? '(direct mode)' : '(council mode)');
     
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Get user from JWT if available (auth header)
+    const authHeader = req.headers.get('Authorization');
+    let userId: string | null = null;
+    
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const supabaseWithAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          global: {
+            headers: { Authorization: authHeader }
+          }
+        });
+        const { data: { user } } = await supabaseWithAuth.auth.getUser(token);
+        userId = user?.id ?? null;
+      } catch (e) {
+        console.warn('Could not extract user from JWT:', e);
+      }
+    }
+    
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: authHeader ? { Authorization: authHeader } : {}
+      }
+    });
     
     // Create or get conversation
     let convId = conversationId;
     if (!convId) {
+      // user_id será setado automaticamente pelo trigger se userId for null
       const { data: conv, error: convError } = await supabase
         .from('conversations')
-        .insert({ intent, status: 'processing' })
+        .insert({ 
+          intent, 
+          status: 'processing',
+          user_id: userId ?? null // Trigger vai preencher se null
+        })
         .select('id')
         .single();
       
@@ -653,11 +681,12 @@ serve(async (req) => {
         timestamp: directResult.timestamp
       };
       
-      // Save to DB
+      // Save to DB (user_id será setado automaticamente pelo trigger)
       await supabase.from('council_results').insert({
         conversation_id: convId,
         stage: 1,
-        results: { generations: stage1Results }
+        results: { generations: stage1Results },
+        user_id: userId ?? null
       });
       
       await supabase
@@ -683,7 +712,8 @@ serve(async (req) => {
     await supabase.from('council_results').insert({
       conversation_id: convId,
       stage: 1,
-      results: { generations: stage1Results }
+      results: { generations: stage1Results },
+      user_id: userId ?? null
     });
 
     // Stage 2: Evaluation
@@ -691,7 +721,8 @@ serve(async (req) => {
     await supabase.from('council_results').insert({
       conversation_id: convId,
       stage: 2,
-      results: stage2Results
+      results: stage2Results,
+      user_id: userId ?? null
     });
 
     // Stage 3: Synthesis
@@ -699,7 +730,8 @@ serve(async (req) => {
     await supabase.from('council_results').insert({
       conversation_id: convId,
       stage: 3,
-      results: stage3Results
+      results: stage3Results,
+      user_id: userId ?? null
     });
 
     // Update conversation status

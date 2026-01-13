@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Loader2 } from "lucide-react";
+import { getIntentExamples, incrementIntentExampleUsage, type IntentExample } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 interface IntentInputProps {
   onSubmit: (intent: string) => void;
   isLoading: boolean;
 }
 
-const EXAMPLE_INTENTS = [
+// Fallback estático caso a API falhe
+const FALLBACK_EXAMPLES = [
   "Sistema de gestão de vendas com controle de estoque",
   "Plataforma de suporte técnico com tickets",
   "Dashboard IoT para monitoramento de sensores",
@@ -19,6 +22,18 @@ const EXAMPLE_INTENTS = [
 export function IntentInput({ onSubmit, isLoading }: IntentInputProps) {
   const [intent, setIntent] = useState("");
 
+  // Buscar exemplos dinâmicos do banco
+  const { data: examples = [] } = useQuery({
+    queryKey: ['intent-examples'],
+    queryFn: () => getIntentExamples({ featured: true, limit: 10 }),
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  // Usar exemplos do banco ou fallback
+  const displayExamples = examples.length > 0 
+    ? examples.map(ex => ex.intent_text)
+    : FALLBACK_EXAMPLES;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (intent.trim() && !isLoading) {
@@ -26,8 +41,18 @@ export function IntentInput({ onSubmit, isLoading }: IntentInputProps) {
     }
   };
 
-  const handleExampleClick = (example: string) => {
-    setIntent(example);
+  const handleExampleClick = async (example: IntentExample | string) => {
+    const intentText = typeof example === 'string' ? example : example.intent_text;
+    setIntent(intentText);
+    
+    // Incrementar contador de uso se for um exemplo do banco
+    if (typeof example !== 'string' && example.id) {
+      try {
+        await incrementIntentExampleUsage(example.id);
+      } catch (error) {
+        console.warn('Failed to increment usage:', error);
+      }
+    }
   };
 
   return (
@@ -77,18 +102,24 @@ export function IntentInput({ onSubmit, isLoading }: IntentInputProps) {
           💡 Exemplos rápidos:
         </p>
         <div className="flex flex-wrap gap-2 justify-center">
-          {EXAMPLE_INTENTS.map((example, index) => (
-            <Button
-              key={index}
-              variant="outline"
-              size="sm"
-              onClick={() => handleExampleClick(example)}
-              disabled={isLoading}
-              className="text-xs hover:bg-primary/10 hover:border-primary transition-colors"
-            >
-              {example.length > 35 ? example.substring(0, 35) + "..." : example}
-            </Button>
-          ))}
+          {displayExamples.map((example, index) => {
+            const exampleObj = examples.find(ex => ex.intent_text === example);
+            const displayText = example.length > 35 ? example.substring(0, 35) + "..." : example;
+            
+            return (
+              <Button
+                key={exampleObj?.id || index}
+                variant="outline"
+                size="sm"
+                onClick={() => handleExampleClick(exampleObj || example)}
+                disabled={isLoading}
+                className="text-xs hover:bg-primary/10 hover:border-primary transition-colors"
+                title={exampleObj?.description || example}
+              >
+                {displayText}
+              </Button>
+            );
+          })}
         </div>
       </div>
     </div>

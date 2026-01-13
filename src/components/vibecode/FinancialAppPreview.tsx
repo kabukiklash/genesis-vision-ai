@@ -15,54 +15,15 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { getFinancialData, upsertFinancialData, type FinancialData } from '@/lib/api';
 
 interface FinancialAppPreviewProps {
   vibeCode: string;
   intent: string;
+  conversationId?: string;
 }
 
-// Mock data for the financial app
-const initialData = {
-  income: {
-    salary1: 8500,
-    salary2: 6200,
-    freelance: 1200,
-    investments: 450,
-    rent: 1800,
-  },
-  expenses: {
-    fixed: {
-      housing: 2500,
-      condo: 800,
-      internet: 150,
-      electricity: 280,
-      water: 120,
-    },
-    variable: {
-      food: 1800,
-      transport: 600,
-      health: 400,
-    },
-    occasional: {
-      emergencies: 0,
-      gifts: 200,
-      travel: 0,
-    },
-  },
-  cards: [
-    { name: 'Pessoa 1 - Principal', limit: 8000, used: 2400, dueDate: 10 },
-    { name: 'Pessoa 2 - Principal', limit: 5000, used: 1800, dueDate: 15 },
-    { name: 'Adicional', limit: 3000, used: 600, dueDate: 20 },
-  ],
-  goals: {
-    monthlyEconomy: { target: 20, current: 15 },
-    emergencyFund: { target: 41700, current: 28000 },
-    travel: { target: 15000, current: 8500 },
-  },
-  notifications: [] as string[],
-};
-
-export function FinancialAppPreview({ vibeCode, intent }: FinancialAppPreviewProps) {
+export function FinancialAppPreview({ vibeCode, intent, conversationId }: FinancialAppPreviewProps) {
   const {
     state,
     friction,
@@ -76,21 +37,57 @@ export function FinancialAppPreview({ vibeCode, intent }: FinancialAppPreviewPro
 
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>('desktop');
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState<FinancialData | null>(null);
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Calculate totals
-  const totalIncome = Object.values(data.income).reduce((a, b) => a + b, 0);
-  const totalFixedExpenses = Object.values(data.expenses.fixed).reduce((a, b) => a + b, 0);
-  const totalVariableExpenses = Object.values(data.expenses.variable).reduce((a, b) => a + b, 0);
-  const totalOccasionalExpenses = Object.values(data.expenses.occasional).reduce((a, b) => a + b, 0);
+  // Load persisted data (or mock fallback) on mount
+  useEffect(() => {
+    let mounted = true;
+
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const loaded = await getFinancialData(conversationId);
+        if (mounted) {
+          setData(loaded);
+        }
+      } catch (error) {
+        console.error('Error loading financial data:', error);
+        toast.error('Erro ao carregar dados financeiros. Usando dados padrão.');
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [conversationId]);
+
+  // Calculate totals (use empty data if not loaded yet to avoid conditional hooks)
+  const safeData: FinancialData = data || {
+    income: {},
+    expenses: { fixed: {}, variable: {}, occasional: {} },
+    cards: [],
+    goals: {},
+  };
+  
+  const totalIncome = Object.values(safeData.income).reduce((a, b) => a + b, 0);
+  const totalFixedExpenses = Object.values(safeData.expenses.fixed).reduce((a, b) => a + b, 0);
+  const totalVariableExpenses = Object.values(safeData.expenses.variable).reduce((a, b) => a + b, 0);
+  const totalOccasionalExpenses = Object.values(safeData.expenses.occasional).reduce((a, b) => a + b, 0);
   const totalExpenses = totalFixedExpenses + totalVariableExpenses + totalOccasionalExpenses;
   const balance = totalIncome - totalExpenses;
-  const totalCardUsage = data.cards.reduce((a, b) => a + b.used, 0);
-  const cardToIncomeRatio = (totalCardUsage / totalIncome) * 100;
+  const totalCardUsage = safeData.cards.reduce((acc, card) => acc + card.used, 0);
+  const cardToIncomeRatio = totalIncome > 0 ? (totalCardUsage / totalIncome) * 100 : 0;
 
   // Automation checks
   useEffect(() => {
+    if (!data) return;
+    
     const newNotifications: string[] = [];
     
     // Check if fixed expenses increased > 15%
@@ -119,7 +116,8 @@ export function FinancialAppPreview({ vibeCode, intent }: FinancialAppPreviewPro
     }
 
     setNotifications(newNotifications);
-  }, [data, totalIncome, totalFixedExpenses, cardToIncomeRatio, balance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, totalIncome, totalFixedExpenses, cardToIncomeRatio, balance, canTransitionTo, transitionTo, setFriction, friction]);
 
   const handleStart = useCallback(() => {
     if (canTransitionTo('RUNNING')) {
@@ -130,10 +128,23 @@ export function FinancialAppPreview({ vibeCode, intent }: FinancialAppPreviewPro
 
   const handleReset = useCallback(() => {
     reset();
-    setData(initialData);
+    if (data) {
+      setData({ ...data });
+    }
     setNotifications([]);
-    toast.info('Sistema resetado');
-  }, [reset]);
+    toast.info('Sistema resetado (somente visual, os dados persistidos não foram alterados)');
+  }, [reset, data]);
+
+  // Enquanto dados não carregam, mostrar skeleton simples
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <div className="text-sm text-muted-foreground">
+          {isLoading ? 'Carregando dados financeiros...' : 'Inicializando dados financeiros...'}
+        </div>
+      </div>
+    );
+  }
 
   const addExpense = (category: 'variable' | 'occasional', subcategory: string, amount: number) => {
     setData(prev => ({
@@ -146,6 +157,24 @@ export function FinancialAppPreview({ vibeCode, intent }: FinancialAppPreviewPro
         }
       }
     }));
+
+    // Persistir alteração de forma assíncrona (best-effort)
+    const newValue = (data.expenses[category] as Record<string, number>)[subcategory] + amount;
+    const nextExpenses = {
+      ...data.expenses,
+      [category]: {
+        ...data.expenses[category],
+        [subcategory]: newValue,
+      },
+    };
+    void upsertFinancialData({
+      ...(data as FinancialData),
+      conversation_id: conversationId ?? null,
+      expenses: nextExpenses,
+    }).catch((error) => {
+      console.error('Error persisting financial_data:', error);
+    });
+
     toast.success(`Despesa de R$ ${amount} registrada`);
   };
 

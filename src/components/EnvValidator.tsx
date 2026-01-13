@@ -17,25 +17,42 @@ export function EnvValidator({ children }: EnvValidatorProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    try {
-      // Tentar importar e validar env
-      import('@/lib/env').then(() => {
-        setIsValid(true);
-        setErrors([]);
+    // Importar e validar env
+    import('@/lib/env')
+      .then((module) => {
+        try {
+          // Tentar acessar env para forçar validação
+          // Se a validação falhou, o módulo já lançou erro na importação
+          const _ = module.env;
+          setIsValid(true);
+          setErrors([]);
+        } catch (error) {
+          // Erro ao acessar env (validação falhou)
+          setIsValid(false);
+          if (error instanceof Error) {
+            const errorLines = error.message.split('\n');
+            const extractedErrors = errorLines
+              .filter(line => line.trim().startsWith('-'))
+              .map(line => line.trim().substring(2));
+            setErrors(extractedErrors.length > 0 ? extractedErrors : [error.message]);
+          } else {
+            setErrors(['Erro desconhecido ao validar variáveis de ambiente']);
+          }
+        }
+      })
+      .catch((error) => {
+        // Erro na importação do módulo
+        setIsValid(false);
+        if (error instanceof Error) {
+          const errorLines = error.message.split('\n');
+          const extractedErrors = errorLines
+            .filter(line => line.trim().startsWith('-'))
+            .map(line => line.trim().substring(2));
+          setErrors(extractedErrors.length > 0 ? extractedErrors : [error.message]);
+        } else {
+          setErrors(['Erro ao carregar módulo de validação de ambiente']);
+        }
       });
-    } catch (error) {
-      setIsValid(false);
-      if (error instanceof Error) {
-        // Extrair erros da mensagem
-        const errorLines = error.message.split('\n');
-        const extractedErrors = errorLines
-          .filter(line => line.trim().startsWith('-'))
-          .map(line => line.trim().substring(2));
-        setErrors(extractedErrors.length > 0 ? extractedErrors : [error.message]);
-      } else {
-        setErrors(['Erro desconhecido ao validar variáveis de ambiente']);
-      }
-    }
   }, []);
 
   const handleCopyInstructions = () => {

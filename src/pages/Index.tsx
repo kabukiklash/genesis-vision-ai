@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IntentInput } from "@/components/IntentInput";
 import { LoadingStages } from "@/components/LoadingStages";
 import { CouncilResults } from "@/components/CouncilResults";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -21,10 +22,8 @@ const Index = () => {
   const handleSubmit = async (intent: string) => {
     // Validação: rejeitar input vazio
     if (!intent.trim()) {
-      toast({
-        title: "Campo obrigatório",
+      toast.error("Campo obrigatório", {
         description: "Por favor, descreva o sistema que deseja criar",
-        variant: "destructive",
       });
       return;
     }
@@ -76,6 +75,10 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="container mx-auto">
+        {/* Auth Button - Top Right */}
+        <div className="flex justify-end mb-4">
+          <AuthButton />
+        </div>
         {state === "input" && (
           <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6">
             <IntentInput onSubmit={handleSubmit} isLoading={false} />
@@ -125,6 +128,7 @@ const Index = () => {
               stage2={results.stage2}
               stage3={results.stage3}
               intent={currentIntent}
+              conversationId={results.conversationId}
             />
           </div>
         )}

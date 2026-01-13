@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useVibeCode } from '@/hooks/useVibeCode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,12 @@ import { StateIndicator, FrictionMeter } from '@/components/vibecode';
 import { Loader2, Pause, CheckCircle, AlertCircle, Play, RotateCcw, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { saveAppStateSnapshot } from '@/lib/api';
 
 interface LiveAppPreviewProps {
   vibeCode: string;
   intent: string;
+  conversationId?: string;
 }
 
 /**
@@ -43,7 +45,7 @@ function extractTitle(intent: string): string {
   return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-export function LiveAppPreview({ vibeCode, intent }: LiveAppPreviewProps) {
+export function LiveAppPreview({ vibeCode, intent, conversationId }: LiveAppPreviewProps) {
   const {
     state,
     friction,
@@ -62,6 +64,27 @@ export function LiveAppPreview({ vibeCode, intent }: LiveAppPreviewProps) {
 
   const uiContext = extractUIContext(intent);
   const isHighFriction = friction > 0.7;
+
+  // Snapshot básico de estado para possíveis features futuras (replay, analytics, etc.)
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const snapshot = {
+      conversation_id: conversationId,
+      state_data: {
+        state,
+        friction,
+        items,
+        progress,
+        errorMessage,
+      },
+    };
+
+    void saveAppStateSnapshot(snapshot).catch((error) => {
+      // Best-effort: logar mas não quebrar UI
+      console.error('Error saving app state snapshot:', error);
+    });
+  }, [conversationId, state, friction, items, progress, errorMessage]);
 
   // Simulated actions
   const handleStart = useCallback(() => {

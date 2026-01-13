@@ -11,9 +11,10 @@ interface CouncilResultsProps {
   stage2: Stage2Results;
   stage3: Stage3Results;
   intent: string;
+  conversationId: string;
 }
 
-export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResultsProps) {
+export function CouncilResults({ stage1, stage2, stage3, intent, conversationId }: CouncilResultsProps) {
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
       <div className="text-center space-y-2">
@@ -44,7 +45,11 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
         {/* App Generator Tab - Primary */}
         <TabsContent value="app" className="mt-6">
           {stage3.validation.valid ? (
-            <GeneratedAppPreview vibeCode={stage3.finalCode} intent={intent} />
+            <GeneratedAppPreview
+              vibeCode={stage3.finalCode}
+              intent={intent}
+              conversationId={conversationId}
+            />
           ) : (
             <Card className="border-destructive">
               <CardHeader>
@@ -55,10 +60,28 @@ export function CouncilResults({ stage1, stage2, stage3, intent }: CouncilResult
               </CardHeader>
               <CardContent>
                 <ul className="text-sm text-destructive space-y-1">
-                  {stage3.validation.errors.map((error, i) => (
-                    <li key={i}>• {error}</li>
-                  ))}
+                  {stage3.validation.errors.map((error, i) => {
+                    // Format error messages for better UX
+                    let displayError = error;
+                    if (error.includes('402')) {
+                      displayError = 'Erro 402: Créditos insuficientes na API. Adicione créditos à sua conta Lovable.';
+                    } else if (error.includes('429')) {
+                      displayError = 'Erro 429: Rate limit excedido. Tente novamente em alguns minutos.';
+                    } else if (error.includes('AI API error')) {
+                      displayError = error.replace('AI API error: ', 'Erro da API: ');
+                    }
+                    return <li key={i}>• {displayError}</li>;
+                  })}
                 </ul>
+                {stage3.validation.errors.some(e => e.includes('402')) && (
+                  <div className="mt-4 p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-1">Como resolver:</p>
+                    <p className="text-xs text-muted-foreground">
+                      O erro 402 indica que sua conta Lovable não tem créditos suficientes. 
+                      Acesse o dashboard da Lovable para adicionar créditos.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

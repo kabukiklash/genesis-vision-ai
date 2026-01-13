@@ -29,10 +29,6 @@ function guessComponentName(transformed: string) {
   return functionMatch?.[1] || constMatch?.[1] || "App";
 }
 
-/**
- * Turns user-provided TS/TSX/JSX into runnable JS that, once executed,
- * assigns the resulting React component into __LIVE_COMPONENT__.
- */
 export function compileLiveComponent(code: string) {
   const stripped = stripImportsExports(stripMarkdownFences(code));
   const componentName = guessComponentName(stripped);
@@ -47,11 +43,33 @@ return ${componentName};
 })();
 `;
 
-  // Compile TSX/JSX -> JS (so we don't get: Unexpected token '<')
-  const compiled = sucraseTransform(program, {
-    transforms: ["typescript", "jsx"],
-  }).code;
+  try {
+    // Compile TSX/JSX -> JS (so we don't get: Unexpected token '<')
+    const compiled = sucraseTransform(program, {
+      transforms: ["typescript", "jsx"],
+    }).code;
 
-  return compiled;
+    return compiled;
+  } catch (err) {
+    // Melhorar mensagem de erro do sucrase
+    if (err instanceof Error) {
+      const originalMessage = err.message;
+      // Tentar extrair linha do erro
+      const lineMatch = originalMessage.match(/\((\d+):(\d+)\)/);
+      if (lineMatch) {
+        const lineNum = parseInt(lineMatch[1]);
+        const codeLines = stripped.split('\n');
+        if (lineNum <= codeLines.length) {
+          const errorLine = codeLines[lineNum - 1];
+          throw new Error(
+            `${originalMessage}\n\nLinha ${lineNum}: ${errorLine.trim()}\n\n` +
+            `Isso geralmente indica um erro de sintaxe no código gerado pela IA. ` +
+            `Verifique aspas, chaves, parênteses ou template strings não fechadas.`
+          );
+        }
+      }
+      throw err;
+    }
+    throw err;
+  }
 }
-

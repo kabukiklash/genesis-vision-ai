@@ -15,4 +15,41 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    css: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      exclude: [
+        "node_modules/",
+        "src/test/",
+        "**/*.d.ts",
+        "**/*.config.*",
+        "**/mockData",
+        "**/*.test.*",
+        "**/*.spec.*",
+      ],
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-toast',
+          ],
+          'query-vendor': ['@tanstack/react-query'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
+  },
 }));

@@ -1,23 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CodeBlock } from '@/components/CodeBlock';
-import { AppChat } from '@/components/chat/AppChat';
-import { LiveCodeRenderer } from '@/components/preview/LiveCodeRenderer';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+
+// Lazy load heavy components
+const AppChat = lazy(() => import('@/components/chat/AppChat').then(m => ({ default: m.AppChat })));
+const LiveCodeRenderer = lazy(() => import('@/components/preview/LiveCodeRenderer').then(m => ({ default: m.LiveCodeRenderer })));
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
   Play, Loader2, RefreshCw, Smartphone, Monitor, Code, 
-  Copy, Check, Download, AlertCircle, Sparkles
+  Copy, Check, Download, AlertCircle, Sparkles, Maximize2, ZoomIn, ZoomOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DynamicAppPreviewProps {
   intent: string;
   vibeCode: string;
+  conversationId?: string;
 }
 
 interface GeneratedApp {
@@ -34,6 +38,9 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
   const [viewMode, setViewMode] = useState<'mobile' | 'desktop'>('desktop');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoom, setZoom] = useState(100);
+  const lastGeneratedRef = useRef<string>(''); // Track last generated intent+vibeCode
 
   const generateApp = useCallback(async () => {
     setIsGenerating(true);
@@ -45,7 +52,19 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
       });
 
       if (fnError) throw fnError;
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        // Se houver erro mas tiver código parcial, mostrar aviso mas permitir tentar renderizar
+        if (data.raw) {
+          toast.warning('Código gerado com avisos. Tentando renderizar mesmo assim...');
+          setGeneratedApp({
+            appName: 'App Gerado',
+            description: 'Código gerado com possíveis problemas',
+            componentCode: data.raw,
+          });
+          return;
+        }
+        throw new Error(data.error);
+      }
 
       setGeneratedApp(data);
       toast.success('App gerado com sucesso!');
@@ -112,12 +131,19 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
     toast.success('Arquivo baixado!');
   };
 
-  // Auto-generate on mount
+  // Auto-generate on mount or when intent/vibeCode changes
   useEffect(() => {
-    if (!generatedApp && !isGenerating) {
+    const key = `${intent}|${vibeCode}`;
+    
+    // Only generate if intent/vibeCode changed and we haven't generated for this combination
+    if (intent && vibeCode && lastGeneratedRef.current !== key && !isGenerating) {
+      lastGeneratedRef.current = key;
+      setGeneratedApp(null);
+      setError(null);
       generateApp();
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent, vibeCode]); // Only depend on intent and vibeCode to avoid loops
 
   if (!generatedApp && !isGenerating && !error) {
     return (
@@ -242,34 +268,95 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
             </TabsList>
 
             <TabsContent value="preview" className="mt-4">
-              {/* View Mode Toggle */}
-              <div className="flex justify-center gap-2 mb-4">
-                <Button
-                  variant={viewMode === 'mobile' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('mobile')}
-                >
-                  <Smartphone className="h-4 w-4 mr-1" />
-                  Mobile
-                </Button>
-                <Button
-                  variant={viewMode === 'desktop' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('desktop')}
-                >
-                  <Monitor className="h-4 w-4 mr-1" />
-                  Desktop
-                </Button>
+              {/* View Mode Toggle & Controls */}
+              <div className="flex justify-center items-center gap-2 mb-4 flex-wrap">
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === 'mobile' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('mobile')}
+                  >
+                    <Smartphone className="h-4 w-4 mr-1" />
+                    Mobile
+                  </Button>
+                  <Button
+                    variant={viewMode === 'desktop' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('desktop')}
+                  >
+                    <Monitor className="h-4 w-4 mr-1" />
+                    Desktop
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setZoom(prev => Math.max(50, prev - 10))}
+                    disabled={zoom <= 50}
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground flex items-center px-2">
+                    {zoom}%
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setZoom(prev => Math.min(200, prev + 10))}
+                    disabled={zoom >= 200}
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               {/* Preview Frame */}
-              <div className="flex justify-center">
-                <div
-                  className={cn(
-                    'border-4 border-foreground/20 rounded-xl overflow-hidden bg-background shadow-xl transition-all',
-                    viewMode === 'mobile' ? 'w-[375px]' : 'w-full max-w-4xl'
-                  )}
-                >
+              {isFullscreen ? (
+                <div className="fixed inset-0 z-50 bg-background p-4">
+                  <div className="flex flex-col h-full">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">{generatedApp?.appName || 'Preview'}</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsFullscreen(false)}
+                      >
+                        Fechar
+                      </Button>
+                    </div>
+                    <div className="flex-1 overflow-auto border rounded-lg">
+                      {generatedApp?.componentCode ? (
+                        <Suspense fallback={<LoadingSpinner size="md" />}>
+                          <LiveCodeRenderer 
+                            code={generatedApp.componentCode} 
+                            className="p-4"
+                          />
+                        </Suspense>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                          <p>Aguardando código gerado...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-center">
+                  <div
+                    className={cn(
+                      'border-4 border-foreground/20 rounded-xl overflow-hidden bg-background shadow-xl transition-all',
+                      viewMode === 'mobile' ? 'w-[375px]' : 'w-full max-w-4xl'
+                    )}
+                    style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
+                  >
                   {/* Device Header */}
                   <div className="bg-foreground/10 px-4 py-2 flex items-center gap-2">
                     <div className="flex gap-1.5">
@@ -290,10 +377,12 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
                     )}
                   >
                     {generatedApp?.componentCode ? (
-                      <LiveCodeRenderer 
-                        code={generatedApp.componentCode} 
-                        className="p-4"
-                      />
+                      <Suspense fallback={<LoadingSpinner size="md" />}>
+                        <LiveCodeRenderer 
+                          code={generatedApp.componentCode} 
+                          className="p-4"
+                        />
+                      </Suspense>
                     ) : (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
                         <p>Aguardando código gerado...</p>
@@ -302,6 +391,7 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
                   </div>
                 </div>
               </div>
+              )}
             </TabsContent>
 
             <TabsContent value="code" className="mt-4">
@@ -348,7 +438,9 @@ export function DynamicAppPreview({ intent, vibeCode }: DynamicAppPreviewProps) 
       </Card>
 
       {/* Floating Chat */}
-      <AppChat onModification={handleModification} isLoading={isGenerating} />
+      <Suspense fallback={null}>
+        <AppChat onModification={handleModification} isLoading={isGenerating} />
+      </Suspense>
     </>
   );
 }
