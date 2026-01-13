@@ -1,15 +1,16 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callChatCompletion, getLlmConfig } from "../_shared/llm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+const { model: defaultModel } = getLlmConfig();
 
 // VibeCode Validation Rules (STRICT)
 const VALID_STATES = ['CANDIDATE', 'RUNNING', 'COOLING', 'DONE', 'ERROR'];
@@ -64,7 +65,7 @@ const PERSONAS = [
   {
     id: 'creative',
     name: 'Arquiteto Criativo',
-    model: 'google/gemini-2.5-flash',
+    model: defaultModel,
     systemPrompt: `Você é um desenvolvedor CRIATIVO mas RIGOROSO com sintaxe. Gere soluções elegantes SEGUINDO EXATAMENTE as regras do VibeCode.
 
 ${VIBECODE_RULES}
@@ -74,7 +75,7 @@ Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   {
     id: 'conservative',
     name: 'Engenheiro Conservador',
-    model: 'google/gemini-2.5-flash',
+    model: defaultModel,
     systemPrompt: `Você é um desenvolvedor CONSERVADOR e CAUTELOSO. Gere soluções ESTRITAMENTE conforme especificado, sem adicionar features ou sintaxe extra.
 
 ${VIBECODE_RULES}
@@ -84,7 +85,7 @@ Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   {
     id: 'efficient',
     name: 'Otimizador de Performance',
-    model: 'google/gemini-2.5-flash',
+    model: defaultModel,
     systemPrompt: `Você é um desenvolvedor focado em EFICIÊNCIA. Gere soluções MÍNIMAS e DIRETAS, sem complexidade desnecessária.
 
 ${VIBECODE_RULES}
@@ -94,7 +95,7 @@ Responda APENAS com código VibeCode válido seguindo o formato do exemplo.`
   {
     id: 'robust',
     name: 'Arquiteto de Resiliência',
-    model: 'google/gemini-2.5-flash',
+    model: defaultModel,
     systemPrompt: `Você é um arquiteto focado em ROBUSTEZ. Gere soluções COMPLETAS mas SIMPLES, cobrindo todos os casos de erro.
 
 ${VIBECODE_RULES}
@@ -117,27 +118,20 @@ Analise as propostas recebidas e produza um código FINAL que:
 
 Responda APENAS com o código VibeCode final.`;
 
-// Helper to call Lovable AI
-async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3, // Lower temperature for more consistent output
-    }),
+// Helper to call LLM provider
+async function callLlm(systemPrompt: string, userPrompt: string, model?: string): Promise<string> {
+  const response = await callChatCompletion({
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.3, // Lower temperature for more consistent output
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
+    console.error('LLM provider error:', response.status, errorText);
     throw new Error(`AI API error: ${response.status}`);
   }
 
@@ -313,7 +307,7 @@ on EVENTO_2 {
 
   const generationPromises = PERSONAS.map(async (persona) => {
     try {
-      const response = await callLovableAI(persona.systemPrompt, userPrompt);
+      const response = await callLlm(persona.systemPrompt, userPrompt, persona.model);
       
       // Extract code from response (handle ```vibecode or ``` blocks)
       let code = response;
@@ -398,9 +392,10 @@ Responda em JSON:
 }`;
 
   try {
-    const evaluationResult = await callLovableAI(
+    const evaluationResult = await callLlm(
       'Você é um avaliador ESPECIALISTA em VibeCode. Penalize códigos que usam sintaxe inválida (cell, trigger, when, cálculos). Responda APENAS em JSON válido.',
-      evaluationPrompt
+      evaluationPrompt,
+      defaultModel
     );
     
     // Try to parse JSON from response
@@ -485,7 +480,7 @@ on EVENTO {
 \`\`\``;
 
   try {
-    const response = await callLovableAI(CHAIRMAN_PROMPT, synthesisPrompt);
+    const response = await callLlm(CHAIRMAN_PROMPT, synthesisPrompt, defaultModel);
     
     // Extract code from response
     let finalCode = response;
@@ -518,7 +513,7 @@ on EVENTO {
     return {
       finalCode,
       validation,
-      chairman: 'google/gemini-2.5-flash',
+      chairman: defaultModel,
       reasoning: 'Síntese das melhores partes de cada proposta',
       timestamp: new Date().toISOString()
     };
@@ -568,7 +563,7 @@ on EVENTO_2 {
 }
 \`\`\``;
 
-  const response = await callLovableAI(PERSONAS[0].systemPrompt, userPrompt);
+  const response = await callLlm(PERSONAS[0].systemPrompt, userPrompt, PERSONAS[0].model);
   
   let code = response;
   const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
@@ -586,7 +581,7 @@ on EVENTO_2 {
   return {
     code,
     validation,
-    model: 'google/gemini-2.5-flash',
+    model: PERSONAS[0].model,
     timestamp: new Date().toISOString()
   };
 }
