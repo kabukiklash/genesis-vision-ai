@@ -82,7 +82,12 @@ Para rodar/localizar as functions:
 - Migrações: `supabase/migrations/`
 
 As funções esperam que os seguintes secrets estejam configurados no projeto Supabase (via Dashboard ou CLI):
-- `LOVABLE_API_KEY`
+- `LLM_PROVIDER` (`openai`, `openrouter`, `custom`, ou `lovable`)
+- `LLM_API_KEY`
+- `LLM_MODEL` (opcional, usa um padrão do provedor)
+- `LLM_BASE_URL` (obrigatório para `custom`, opcional nos demais)
+- `OPENROUTER_SITE_URL` e `OPENROUTER_APP_NAME` (opcionais para OpenRouter)
+- `LOVABLE_API_KEY` (opcional, apenas se você usar `LLM_PROVIDER=lovable`)
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
@@ -95,7 +100,7 @@ Consulte `PLANO_IMPLEMENTACAO.md` para os detalhes da Fase 1 (Configuração) e 
 - Vite + React + TypeScript
 - Tailwind CSS + shadcn-ui + Radix UI
 - Supabase (Postgres, Auth, Edge Functions)
-- Lovable AI Gateway (Gemini) para geração de VibeCode e código React
+- Multi-provider LLM (OpenAI, OpenRouter, endpoints customizados ou Lovable AI Gateway)
 
 ---
 

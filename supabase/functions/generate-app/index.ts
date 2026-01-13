@@ -1,12 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callChatCompletion, getLlmConfig } from "../_shared/llm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+const { model: defaultModel } = getLlmConfig();
 
 const SYSTEM_PROMPT = `Você é um gerador de código React especializado. Sua função é criar componentes React COMPLETOS e FUNCIONAIS baseados na intenção do usuário.
 
@@ -63,10 +64,6 @@ serve(async (req) => {
 
   try {
     const { intent, vibeCode, type, currentCode, modification } = await req.json() as GenerateRequest;
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -225,22 +222,15 @@ Gere o código React COMPLETO e VÁLIDO. O código será validado e qualquer err
     while (attempts < maxAttempts) {
       attempts++;
       
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt + (attempts > 1 ? `\n\n⚠️ TENTATIVA ${attempts}: O código anterior tinha erros de sintaxe. ${lastError ? `Erro: ${lastError}` : ''} Por favor, gere código COMPLETO e VÁLIDO, verificando todas as strings, chaves e parênteses.` : '') }
-          ],
-          tools,
-          tool_choice,
-          max_tokens: 8192, // Aumentar limite de tokens
-        }),
+      const response = await callChatCompletion({
+        model: defaultModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt + (attempts > 1 ? `\n\n⚠️ TENTATIVA ${attempts}: O código anterior tinha erros de sintaxe. ${lastError ? `Erro: ${lastError}` : ''} Por favor, gere código COMPLETO e VÁLIDO, verificando todas as strings, chaves e parênteses.` : '') }
+        ],
+        tools,
+        tool_choice,
+        max_tokens: 8192, // Aumentar limite de tokens
       });
 
       if (!response.ok) {
