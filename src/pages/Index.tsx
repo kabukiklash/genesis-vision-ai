@@ -3,6 +3,7 @@ import { IntentInput } from "@/components/IntentInput";
 import { LoadingStages } from "@/components/LoadingStages";
 import { CouncilResults } from "@/components/CouncilResults";
 import { AuthButton } from "@/components/auth/AuthButton";
+import { ErrorButton } from "@/components/ErrorButton";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -76,8 +77,11 @@ const Index = () => {
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="container mx-auto">
         {/* Auth Button - Top Right */}
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end items-center gap-2 mb-4">
           <AuthButton />
+          {import.meta.env.DEV && (
+            <ErrorButton />
+          )}
         </div>
         {state === "input" && (
           <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6">

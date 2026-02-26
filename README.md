@@ -1,5 +1,7 @@
 # Genesis Vision AI
 
+[![CI Pipeline](https://github.com/GenesisVision/genesis-vision-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/GenesisVision/genesis-vision-ai/actions/workflows/ci.yml)
+
 Programação por intenção com LLM Council, VibeCode e geração automática de apps React.
 
 Este repositório contém:
@@ -64,7 +66,7 @@ npm install
 npm run dev
 ```
 
-O servidor padrão do Vite foi configurado para rodar em `http://localhost:8080`.
+O servidor padrão do Vite foi configurado para rodar em `http://localhost:8081`.
 
 ---
 

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -41,14 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    logger.info('AuthContext', 'Sign in attempt', { email: email.substring(0, 3) + '***' });
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      logger.error('AuthContext', 'Sign in failed', { error: error.message });
       toast.error(error.message);
     } else {
+      logger.info('AuthContext', 'Sign in successful', { email: email.substring(0, 3) + '***' });
       toast.success('Login realizado com sucesso!');
     }
 
@@ -56,14 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
+    logger.info('AuthContext', 'Sign up attempt', { email: email.substring(0, 3) + '***' });
     const { error } = await supabase.auth.signUp({
       email,
       password,
     });
 
     if (error) {
+      logger.error('AuthContext', 'Sign up failed', { error: error.message });
       toast.error(error.message);
     } else {
+      logger.info('AuthContext', 'Sign up successful', { email: email.substring(0, 3) + '***' });
       toast.success('Conta criada! Verifique seu email para confirmar.');
     }
 
@@ -71,10 +78,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    logger.info('AuthContext', 'Sign out attempt');
     const { error } = await supabase.auth.signOut();
     if (error) {
+      logger.error('AuthContext', 'Sign out failed', { error: error.message });
       toast.error(error.message);
     } else {
+      logger.info('AuthContext', 'Sign out successful');
       toast.success('Logout realizado com sucesso!');
     }
   };

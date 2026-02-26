@@ -117,7 +117,7 @@ Analise as propostas recebidas e produza um código FINAL que:
 
 Responda APENAS com o código VibeCode final.`;
 
-// Helper to call Lovable AI
+// Helper: Lovable AI
 async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<string> {
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -131,7 +131,7 @@ async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.3, // Lower temperature for more consistent output
+      temperature: 0.3,
     }),
   });
 
@@ -277,7 +277,7 @@ function validatePERCode(code: string): { valid: boolean; errors: string[]; warn
   };
 }
 
-// Stage 1: Parallel Generation with STRICT prompts
+// Stage 1: Geração paralela (Lovable)
 async function stage1Generation(intent: string): Promise<any[]> {
   console.log('Stage 1: Starting parallel generation...');
   
@@ -314,21 +314,15 @@ on EVENTO_2 {
   const generationPromises = PERSONAS.map(async (persona) => {
     try {
       const response = await callLovableAI(persona.systemPrompt, userPrompt);
-      
-      // Extract code from response (handle ```vibecode or ``` blocks)
       let code = response;
       const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
       if (vibeCodeMatch) {
         code = vibeCodeMatch[1].trim();
       } else {
         const anyCodeMatch = response.match(/```\s*\n?([\s\S]+?)\n?```/);
-        if (anyCodeMatch) {
-          code = anyCodeMatch[1].trim();
-        }
+        if (anyCodeMatch) code = anyCodeMatch[1].trim();
       }
-      
       const validation = validatePERCode(code);
-      
       return {
         personaId: persona.id,
         personaName: persona.name,
