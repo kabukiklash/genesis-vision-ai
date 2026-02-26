@@ -168,7 +168,7 @@ export async function getFinancialData(
     return defaultFinancialMock;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("financial_data")
     .select("*")
     .eq("conversation_id", conversationId)
@@ -177,7 +177,6 @@ export async function getFinancialData(
     .maybeSingle();
 
   if (error) {
-    // Em caso de erro, fallback para mock para não quebrar UI
     console.error("Error loading financial_data:", error);
     return defaultFinancialMock;
   }
@@ -204,7 +203,7 @@ export async function upsertFinancialData(
     return;
   }
 
-  const { error } = await supabase.from("financial_data").upsert(
+  const { error } = await (supabase as any).from("financial_data").upsert(
     {
       id: payload.id,
       conversation_id: payload.conversation_id ?? null,
@@ -238,7 +237,7 @@ export async function saveAppStateSnapshot(
 ): Promise<void> {
   if (shouldUseMockData) return;
 
-  const { error } = await supabase.from("app_states").insert({
+  const { error } = await (supabase as any).from("app_states").insert({
     conversation_id: snapshot.conversation_id ?? null,
     state_data: snapshot.state_data,
   });
@@ -267,7 +266,7 @@ export async function getIntentExamples(options?: {
   featured?: boolean;
   limit?: number;
 }): Promise<IntentExample[]> {
-  let query = supabase
+  let query = (supabase as any)
     .from('intent_examples')
     .select('*')
     .order('usage_count', { ascending: false });
@@ -297,19 +296,17 @@ export async function getIntentExamples(options?: {
     return [];
   }
 
-  return data || [];
+  return (data || []) as IntentExample[];
 }
 
 export async function incrementIntentExampleUsage(exampleId: string): Promise<void> {
   try {
-    // Tentar incrementar via RPC (se existir)
-    const { error: rpcError } = await supabase.rpc('increment_intent_example_usage', {
+    const { error: rpcError } = await (supabase as any).rpc('increment_intent_example_usage', {
       example_id: exampleId
     });
 
     if (rpcError) {
-      // Fallback: update manual
-      const { data: current, error: selectError } = await supabase
+      const { data: current, error: selectError } = await (supabase as any)
         .from('intent_examples')
         .select('usage_count')
         .eq('id', exampleId)
@@ -317,11 +314,11 @@ export async function incrementIntentExampleUsage(exampleId: string): Promise<vo
 
       if (selectError) {
         console.warn('Could not fetch current usage count:', selectError);
-        return; // Falha silenciosamente mas loga
+        return;
       }
 
       if (current) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('intent_examples')
           .update({ usage_count: (current.usage_count || 0) + 1 })
           .eq('id', exampleId);
@@ -332,7 +329,6 @@ export async function incrementIntentExampleUsage(exampleId: string): Promise<vo
       }
     }
   } catch (error) {
-    // Erro inesperado - logar mas não quebrar aplicação
     console.warn('Error incrementing intent example usage:', error);
   }
 }
