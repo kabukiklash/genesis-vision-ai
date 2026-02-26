@@ -267,37 +267,55 @@ export async function getIntentExamples(options?: {
   featured?: boolean;
   limit?: number;
 }): Promise<IntentExample[]> {
-  let query = supabase
-    .from('intent_examples')
-    .select('*')
-    .order('usage_count', { ascending: false });
+  try {
+    let query = supabase
+      .from('intent_examples')
+      .select('*')
+      .order('usage_count', { ascending: false });
 
-  if (options?.featured) {
-    query = query.eq('is_featured', true);
-  }
+    if (options?.featured) {
+      query = query.eq('is_featured', true);
+    }
 
-  if (options?.category) {
-    query = query.eq('category', options.category);
-  }
+    if (options?.category) {
+      query = query.eq('category', options.category);
+    }
 
-  if (options?.limit) {
-    query = query.limit(options.limit);
-  }
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    // Se a tabela não existir ainda, retornar exemplos estáticos como fallback
-    if (error.code === 'PGRST116' || error.message?.includes('does not exist') || error.message?.includes('relation') && error.message?.includes('does not exist')) {
-      console.info('Intent examples table not found, using fallback examples');
+    if (error) {
+      // Se a tabela não existir ainda (desenvolvimento), usar fallback
+      if (
+        error.code === 'PGRST116' ||
+        error.message?.includes('does not exist')
+      ) {
+        console.info(
+          'ℹ️ Intent examples table not found, using fallback examples'
+        );
+        return []; // OK - tabela ainda não existe em desenvolvimento
+      }
+
+      // Para OUTROS erros, logar mas não quebrar a aplicação
+      console.warn('⚠️ Error fetching intent examples:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+
       return [];
     }
-    // Para outros erros, logar mas não quebrar a aplicação
-    console.warn('Error fetching intent examples:', error);
+
+    return data || [];
+  } catch (error) {
+    // Erro não esperado - logar bem
+    console.error('❌ Unexpected error in getIntentExamples:', error);
     return [];
   }
-
-  return data || [];
 }
 
 export async function incrementIntentExampleUsage(exampleId: string): Promise<void> {

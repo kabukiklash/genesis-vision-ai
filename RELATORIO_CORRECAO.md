@@ -1,7 +1,7 @@
 # 🔧 Relatório de Correção - Genesis Vision AI
 
-**Data**: 2025-01-08  
-**Status**: Análise Completa  
+**Data**: 2025-02-26  
+**Status**: Etapa 1 Concluída | Análise Completa  
 **Prioridade**: 🔴 Crítica | 🟡 Média | 🟢 Baixa
 
 ---
@@ -341,7 +341,112 @@ if (conversationId && !isValidUUID(conversationId)) {
 
 ## ✅ Correções Aplicadas
 
-Todas as correções críticas e médias foram implementadas. Ver detalhes nos commits.
+### ETAPA 1: Corrigir EnvValidator para Captura Correta de Erros
+
+**Data Início**: 2025-02-26  
+**Data Conclusão**: 2025-02-26  
+**Status**: ✅ Concluída
+
+#### Implementação
+
+- [x] `src/components/EnvValidator.tsx` atualizado com async/await
+- [x] Função de erro captura e exibe mensagens corretamente
+- [x] UI mostra erros de forma clara (tela vermelha, lista específica)
+- [x] Código comentado explicando mudanças
+- [x] Import de `Alert` removido (UI simplificada)
+- [x] Log no console com timestamp: `❌ EnvValidator Error [ISO-date]: [...]`
+
+#### Alterações Técnicas
+
+1. **useEffect** reescrito com IIFE async/await:
+   ```typescript
+   (async () => {
+     try {
+       const module = await import('@/lib/env');
+       const _ = module.env;
+       setIsValid(true);
+       setErrors([]);
+     } catch (error: unknown) {
+       setIsValid(false);
+       // extração de erros do formato env.ts...
+       console.error(`❌ EnvValidator Error [${new Date().toISOString()}]:`, finalErrors);
+     }
+   })();
+   ```
+
+2. **UI** atualizada com:
+   - Tela fixa vermelha (`bg-red-50`)
+   - Título "⚠️ Erro de Configuração"
+   - Lista de erros em `font-mono`
+   - Botões Copiar Instruções e Abrir Supabase
+   - Link para documentação de setup
+
+#### Testes Recomendados (validar manualmente)
+
+| Teste | Cenário | Resultado Esperado |
+|-------|---------|-------------------|
+| 1 | Sem `.env.local` | Página vermelha com erro, app não carrega |
+| 2 | `.env.local` incompleto | Erro específico exibido (qual variável falta) |
+| 3 | `.env.local` válido | App carrega normalmente |
+
+#### Qualidade
+
+- [x] Lint: 0 erros (warnings pré-existentes)
+- [x] TypeScript: tipos corretos (`error: unknown`)
+- [x] Código formatado
+- [x] Sem `console.log` de debug
+
+#### Commit Sugerido
+
+```
+fix: EnvValidator error handling - etapa 1
+
+- Usar async/await em vez de .then() para captura correta de erros
+- Forçar avaliação de module.env na validação
+- Extrair mensagens de erro do formato env.ts
+- Log com timestamp no console em caso de falha
+- UI atualizada: tela vermelha, mensagens claras, link para docs
+- App bloqueia corretamente sem variáveis válidas
+```
+
+---
+
+---
+
+### ETAPA 2: Corrigir getIntentExamples - Tratamento de Erro
+
+**Data Início**: 2025-02-26  
+**Data Conclusão**: 2025-02-26  
+**Status**: ✅ Concluída
+
+#### Implementação
+
+- [x] Função `getIntentExamples` atualizada em `src/lib/api.ts`
+- [x] Try/catch externo implementado
+- [x] Verifica `error.code === 'PGRST116'`
+- [x] Verifica `error.message.includes('does not exist')`
+- [x] Loga com estrutura `{code, message, details, hint}`
+- [x] `console.info` para tabela não existe
+- [x] `console.warn` para erros conhecidos
+- [x] `console.error` para erros inesperados no catch
+- [x] Sempre retorna `[]` para não quebrar a aplicação
+
+#### Alterações Técnicas
+
+1. **try/catch** envolvendo toda a função
+2. **Tabela inexistente** (PGRST116 ou "does not exist"): `console.info` e retorna `[]`
+3. **Outros erros Supabase**: `console.warn` com objeto estruturado
+4. **Erros não esperados**: `console.error` no catch
+
+#### Commit Sugerido
+
+```
+fix: getIntentExamples error handling - etapa 2
+```
+
+---
+
+**Próximas etapas**: ETAPA 3 (Autenticação Supabase) conforme plano de auditoria.
 
 ---
 
