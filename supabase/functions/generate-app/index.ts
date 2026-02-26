@@ -56,7 +56,7 @@ interface GenerateRequest {
   modification?: string;
 }
 
-serve(async (req) => {
+serve(async (req): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -225,7 +225,7 @@ Gere o código React COMPLETO e VÁLIDO. O código será validado e qualquer err
     while (attempts < maxAttempts) {
       attempts++;
       
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const response: Response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -323,7 +323,12 @@ Gere o código React COMPLETO e VÁLIDO. O código será validado e qualquer err
       );
     } // Fim do while loop
 
-  } catch (error) {
+    // Fallback - should not reach here
+    return new Response(
+      JSON.stringify({ error: 'Unexpected: no response generated' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
     console.error('Generate app error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
