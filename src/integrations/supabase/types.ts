@@ -21,6 +21,7 @@ export type Database = {
           intent: string
           status: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -28,6 +29,7 @@ export type Database = {
           intent: string
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -35,6 +37,7 @@ export type Database = {
           intent?: string
           status?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -45,6 +48,7 @@ export type Database = {
           id: string
           results: Json
           stage: number
+          user_id: string | null
         }
         Insert: {
           conversation_id: string
@@ -52,6 +56,7 @@ export type Database = {
           id?: string
           results?: Json
           stage: number
+          user_id?: string | null
         }
         Update: {
           conversation_id?: string
@@ -59,6 +64,7 @@ export type Database = {
           id?: string
           results?: Json
           stage?: number
+          user_id?: string | null
         }
         Relationships: [
           {
