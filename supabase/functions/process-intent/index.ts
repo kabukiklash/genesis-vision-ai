@@ -597,6 +597,29 @@ serve(async (req) => {
   }
 
   try {
+    // Require authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseWithAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseWithAuth.auth.getUser(token);
+    if (claimsError || !claimsData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const userId: string = claimsData.user.id;
+
     const { intent, conversationId, skipCouncil } = await req.json();
     
     if (!intent) {
@@ -608,41 +631,19 @@ serve(async (req) => {
 
     console.log('Processing intent:', intent, skipCouncil ? '(direct mode)' : '(council mode)');
     
-    // Get user from JWT if available (auth header)
-    const authHeader = req.headers.get('Authorization');
-    let userId: string | null = null;
-    
-    if (authHeader) {
-      try {
-        const token = authHeader.replace('Bearer ', '');
-        const supabaseWithAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          global: {
-            headers: { Authorization: authHeader }
-          }
-        });
-        const { data: { user } } = await supabaseWithAuth.auth.getUser(token);
-        userId = user?.id ?? null;
-      } catch (e) {
-        console.warn('Could not extract user from JWT:', e);
-      }
-    }
-    
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: authHeader ? { Authorization: authHeader } : {}
-      }
+      global: { headers: { Authorization: authHeader } }
     });
     
     // Create or get conversation
     let convId = conversationId;
     if (!convId) {
-      // user_id será setado automaticamente pelo trigger se userId for null
       const { data: conv, error: convError } = await supabase
         .from('conversations')
         .insert({ 
           intent, 
           status: 'processing',
-          user_id: userId ?? null // Trigger vai preencher se null
+          user_id: userId
         })
         .select('id')
         .single();
@@ -681,12 +682,11 @@ serve(async (req) => {
         timestamp: directResult.timestamp
       };
       
-      // Save to DB (user_id será setado automaticamente pelo trigger)
       await supabase.from('council_results').insert({
         conversation_id: convId,
         stage: 1,
         results: { generations: stage1Results },
-        user_id: userId ?? null
+        user_id: userId
       });
       
       await supabase
@@ -713,7 +713,7 @@ serve(async (req) => {
       conversation_id: convId,
       stage: 1,
       results: { generations: stage1Results },
-      user_id: userId ?? null
+      user_id: userId
     });
 
     // Stage 2: Evaluation
@@ -722,7 +722,7 @@ serve(async (req) => {
       conversation_id: convId,
       stage: 2,
       results: stage2Results,
-      user_id: userId ?? null
+      user_id: userId
     });
 
     // Stage 3: Synthesis
@@ -731,7 +731,7 @@ serve(async (req) => {
       conversation_id: convId,
       stage: 3,
       results: stage3Results,
-      user_id: userId ?? null
+      user_id: userId
     });
 
     // Update conversation status
