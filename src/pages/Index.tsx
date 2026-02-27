@@ -8,11 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { processIntent, type ProcessIntentResponse } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Users, Zap } from "lucide-react";
+import { ArrowLeft, Users, Zap, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 type AppState = "input" | "loading" | "results";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [state, setState] = useState<AppState>("input");
   const [currentStage, setCurrentStage] = useState(1);
   const [results, setResults] = useState<ProcessIntentResponse | null>(null);
@@ -76,7 +78,10 @@ const Index = () => {
     <div className="min-h-screen bg-background py-8 px-4">
       <div className="container mx-auto">
         {/* Auth Button - Top Right */}
-        <div className="flex justify-end mb-4">
+        <div className="flex justify-end gap-2 mb-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} title="Configurações">
+            <Settings className="h-5 w-5" />
+          </Button>
           <AuthButton />
         </div>
         {state === "input" && (

@@ -117,27 +117,31 @@ Analise as propostas recebidas e produza um código FINAL que:
 
 Responda APENAS com o código VibeCode final.`;
 
-// Helper to call Lovable AI
-async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+// Helper to call AI (supports custom provider)
+async function callAI(
+  systemPrompt: string,
+  userPrompt: string,
+  aiConfig: { url: string; key: string; model: string }
+): Promise<string> {
+  const response = await fetch(aiConfig.url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Authorization': `Bearer ${aiConfig.key}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: aiConfig.model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.3, // Lower temperature for more consistent output
+      temperature: 0.3,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
+    console.error('AI error:', response.status, errorText);
     throw new Error(`AI API error: ${response.status}`);
   }
 
@@ -278,7 +282,7 @@ function validatePERCode(code: string): { valid: boolean; errors: string[]; warn
 }
 
 // Stage 1: Parallel Generation with STRICT prompts
-async function stage1Generation(intent: string): Promise<any[]> {
+async function stage1Generation(intent: string, aiConfig: { url: string; key: string; model: string }): Promise<any[]> {
   console.log('Stage 1: Starting parallel generation...');
   
   const userPrompt = `**INTENÇÃO DO USUÁRIO:**
@@ -313,7 +317,7 @@ on EVENTO_2 {
 
   const generationPromises = PERSONAS.map(async (persona) => {
     try {
-      const response = await callLovableAI(persona.systemPrompt, userPrompt);
+      const response = await callAI(persona.systemPrompt, userPrompt, aiConfig);
       
       // Extract code from response (handle ```vibecode or ``` blocks)
       let code = response;
@@ -353,7 +357,7 @@ on EVENTO_2 {
 }
 
 // Stage 2: Cross Evaluation with VibeCode-aware criteria
-async function stage2Evaluation(generations: any[]): Promise<any> {
+async function stage2Evaluation(generations: any[], aiConfig: { url: string; key: string; model: string }): Promise<any> {
   console.log('Stage 2: Starting cross evaluation...');
   
   // Include validation results in evaluation
@@ -398,9 +402,10 @@ Responda em JSON:
 }`;
 
   try {
-    const evaluationResult = await callLovableAI(
+    const evaluationResult = await callAI(
       'Você é um avaliador ESPECIALISTA em VibeCode. Penalize códigos que usam sintaxe inválida (cell, trigger, when, cálculos). Responda APENAS em JSON válido.',
-      evaluationPrompt
+      evaluationPrompt,
+      aiConfig
     );
     
     // Try to parse JSON from response
@@ -444,7 +449,7 @@ Responda em JSON:
 }
 
 // Stage 3: Synthesis by Chairman - STRICT VibeCode
-async function stage3Synthesis(intent: string, generations: any[], evaluation: any): Promise<any> {
+async function stage3Synthesis(intent: string, generations: any[], evaluation: any, aiConfig: { url: string; key: string; model: string }): Promise<any> {
   console.log('Stage 3: Starting synthesis...');
   
   // Filter to only valid codes if available
@@ -485,7 +490,7 @@ on EVENTO {
 \`\`\``;
 
   try {
-    const response = await callLovableAI(CHAIRMAN_PROMPT, synthesisPrompt);
+    const response = await callAI(CHAIRMAN_PROMPT, synthesisPrompt, aiConfig);
     
     // Extract code from response
     let finalCode = response;
@@ -538,7 +543,7 @@ on EVENTO {
 }
 
 // Direct generation (skip council) - single AI call
-async function directGeneration(intent: string): Promise<any> {
+async function directGeneration(intent: string, aiConfig: { url: string; key: string; model: string }): Promise<any> {
   console.log('Direct generation mode (council disabled)...');
   
   const userPrompt = `**INTENÇÃO DO USUÁRIO:**
@@ -568,7 +573,7 @@ on EVENTO_2 {
 }
 \`\`\``;
 
-  const response = await callLovableAI(PERSONAS[0].systemPrompt, userPrompt);
+  const response = await callAI(PERSONAS[0].systemPrompt, userPrompt, aiConfig);
   
   let code = response;
   const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
@@ -634,6 +639,23 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } }
     });
+
+    // Check for user's custom LLM provider
+    const { data: customProvider } = await supabase
+      .from('llm_providers')
+      .select('api_url, api_key, model')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    const useCustom = customProvider?.api_url && customProvider?.api_key && customProvider?.model;
+    const aiConfig = {
+      url: useCustom ? customProvider.api_url : 'https://ai.gateway.lovable.dev/v1/chat/completions',
+      key: useCustom ? customProvider.api_key : LOVABLE_API_KEY!,
+      model: useCustom ? customProvider.model : 'google/gemini-2.5-flash',
+    };
+    console.log('Using AI provider:', useCustom ? 'custom' : 'lovable');
     
     // Create or get conversation
     let convId = conversationId;
@@ -657,7 +679,7 @@ serve(async (req) => {
 
     // DIRECT MODE: Skip council, single AI call
     if (skipCouncil) {
-      const directResult = await directGeneration(intent);
+      const directResult = await directGeneration(intent, aiConfig);
       
       // Create simplified response structure
       const stage1Results = [{
@@ -708,7 +730,7 @@ serve(async (req) => {
 
     // COUNCIL MODE: Full 3-stage process
     // Stage 1: Generation
-    const stage1Results = await stage1Generation(intent);
+    const stage1Results = await stage1Generation(intent, aiConfig);
     await supabase.from('council_results').insert({
       conversation_id: convId,
       stage: 1,
@@ -717,7 +739,7 @@ serve(async (req) => {
     });
 
     // Stage 2: Evaluation
-    const stage2Results = await stage2Evaluation(stage1Results);
+    const stage2Results = await stage2Evaluation(stage1Results, aiConfig);
     await supabase.from('council_results').insert({
       conversation_id: convId,
       stage: 2,
@@ -726,7 +748,7 @@ serve(async (req) => {
     });
 
     // Stage 3: Synthesis
-    const stage3Results = await stage3Synthesis(intent, stage1Results, stage2Results);
+    const stage3Results = await stage3Synthesis(intent, stage1Results, stage2Results, aiConfig);
     await supabase.from('council_results').insert({
       conversation_id: convId,
       stage: 3,
