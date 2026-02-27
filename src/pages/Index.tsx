@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IntentInput } from "@/components/IntentInput";
 import { LoadingStages } from "@/components/LoadingStages";
 import { CouncilResults } from "@/components/CouncilResults";
@@ -54,9 +54,11 @@ const Index = () => {
 
       if (error instanceof Error) {
         if (error.message.includes("429")) {
-          toast.error("Rate limit excedido. Tente novamente em alguns minutos.");
+          toast.error("Rate limit excedido. Tente o modo Direto ou aguarde alguns minutos.");
         } else if (error.message.includes("402")) {
           toast.error("Créditos insuficientes. Adicione créditos à sua conta.");
+        } else if (error.message.includes("timeout") || error.message.includes("Timeout")) {
+          toast.error("Tempo esgotado. O Council demorou muito — use o modo Direto (1 chamada) para mais rapidez.");
         } else {
           toast.error(error.message || "Erro ao processar intenção");
         }
@@ -65,6 +67,18 @@ const Index = () => {
       }
     }
   };
+
+  // Evita Backspace causar navegação (voltar) durante loading — previne erro de módulo dinâmico
+  useEffect(() => {
+    if (state !== "loading") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Backspace" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state]);
 
   const handleReset = () => {
     setState("input");

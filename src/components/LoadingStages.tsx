@@ -48,9 +48,9 @@ export function LoadingStages({ currentStage, totalStages = 3 }: LoadingStagesPr
           {totalStages === 1 ? "Geração Direta" : "LLM Council em Ação"}
         </h2>
         <p className="text-muted-foreground">
-          {totalStages === 1 
+          {totalStages === 1
             ? "Gerando código diretamente..."
-            : "Processando sua intenção em 3 estágios..."}
+            : "Processando sua intenção em 3 estágios. O Stage 3 pode levar até 1 minuto — não recarregue nem use atalhos."}
         </p>
       </div>
 

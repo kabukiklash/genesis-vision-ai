@@ -67,7 +67,9 @@ export async function processIntent(intent: string, options?: ProcessIntentOptio
   });
 
   if (error) {
-    throw new Error(error.message || 'Failed to process intent');
+    // Incluir mensagem do body da Edge Function quando disponível (ex.: 500 com { error: "..." })
+    const msg = (data as { error?: string })?.error || error.message || 'Failed to process intent';
+    throw new Error(msg);
   }
 
   return data as ProcessIntentResponse;

@@ -40,15 +40,21 @@ npx supabase link --project-ref zquhibncpluvnqcdlipg
 
 (Use o **Project ID** do seu `.env` - `VITE_SUPABASE_PROJECT_ID`)
 
-### 4. Configurar o secret LOVABLE_API_KEY
+### 4. Configurar os secrets do LLM
 
-A função usa a API Lovable para gerar código. Configure o secret:
-
+**Opção A — Anthropic (Claude):**
 ```bash
-npx supabase secrets set LOVABLE_API_KEY=sua_chave_aqui
+npx supabase secrets set LLM_PROVIDER=anthropic
+npx supabase secrets set LLM_API_KEY=sk-ant-sua_chave
 ```
+Chave em: https://console.anthropic.com
 
-**Onde obter a chave:** https://lovable.dev → conta → API / Integrations.
+**Opção B — OpenAI:**
+```bash
+npx supabase secrets set LLM_PROVIDER=openai
+npx supabase secrets set LLM_API_KEY=sk-sua_chave
+```
+Chave em: https://platform.openai.com/api-keys
 
 ### 5. Deploy da função process-intent
 

@@ -446,7 +446,107 @@ fix: getIntentExamples error handling - etapa 2
 
 ---
 
-**Próximas etapas**: ETAPA 3 (Autenticação Supabase) conforme plano de auditoria.
+---
+
+### ETAPA 3: Autenticação Supabase e Rotas Protegidas
+
+**Data Início**: 2025-02-26  
+**Data Conclusão**: 2025-02-26  
+**Status**: ✅ Concluída
+
+#### Implementação
+
+- [x] AuthContext/AuthProvider já existiam (mantidos)
+- [x] LoginForm/RegisterForm já existiam (mantidos)
+- [x] RLS Policies já existiam nas migrations anteriores
+- [x] Páginas `Login.tsx` e `Register.tsx` criadas
+- [x] Componente `ProtectedRoute.tsx` criado
+- [x] Rotas atualizadas em `AppContent.tsx`:
+  - `/login` - pública (redirect para `/` se logado)
+  - `/register` - pública (redirect para `/` se logado)
+  - `/` - protegida (redirect para `/login` se não logado)
+  - `*` - redirect para `/`
+
+#### Estrutura Mantida
+
+- AuthProvider permanece dentro de AppContent (evita carregar supabase antes do EnvValidator)
+- useAuth em `@/hooks/useAuth` (re-export)
+
+#### Commit Sugerido
+
+```
+feat: Etapa 3 - autenticação e rotas protegidas
+```
+
+---
+
+---
+
+### ETAPA 4: Configurar CI/CD Pipeline
+
+**Data Início**: 2025-02-26  
+**Data Conclusão**: 2025-02-26  
+**Status**: ✅ Concluída
+
+#### Implementação
+
+- [x] Workflow `.github/workflows/ci.yml` atualizado
+- [x] Triggers: push e pull_request em `main` e `development`
+- [x] Jobs: lint, test, build, e2e, deploy-preview, deploy-production
+- [x] ESLint rodando (continue-on-error: false)
+- [x] Testes unitários com `--run`
+- [x] Coverage report com `test:coverage`
+- [x] Codecov upload (continue-on-error)
+- [x] Build para produção
+- [x] E2E Playwright (continue-on-error: true)
+- [x] Artifacts: dist (1 dia), playwright-report (30 dias)
+
+#### Fluxo do Pipeline
+
+1. **lint** → ESLint
+2. **test** → Vitest + coverage → Codecov
+3. **build** → Vite build (depende de lint + test)
+4. **e2e** → Playwright (depende de build)
+5. **deploy-preview** → em PRs
+6. **deploy-production** → push em main
+
+#### Commit Sugerido
+
+```
+feat: Etapa 4 - CI/CD pipeline atualizado
+```
+
+---
+
+---
+
+### ETAPA 5: Monitoramento, Logging e Backup
+
+**Data Início**: 2025-02-26  
+**Data Conclusão**: 2025-02-26  
+**Status**: ✅ Concluída
+
+#### Implementação
+
+- [x] **Sentry** – `@sentry/react` instalado, `src/lib/sentry.ts` criado
+- [x] **main.tsx** – Sentry.ErrorBoundary, Sentry.withProfiler
+- [x] **Logger** – `src/lib/logger.ts` com debug/info/warn/error estruturado
+- [x] **AuthContext** – logger em signIn, signUp, signOut
+- [x] **docs/BACKUP.md** – estratégia de backup Supabase
+- [x] **docs/OBSERVABILITY.md** – documentação de observabilidade
+- [x] **.env.example** – template com variáveis Sentry
+- [x] **.env** – VITE_SENTRY_DSN, VITE_SENTRY_ENABLED, VITE_APP_VERSION
+
+#### Próximos passos (manual)
+
+1. Criar conta em https://sentry.io e projeto React
+2. Copiar DSN e adicionar em `.env`: `VITE_SENTRY_DSN=https://...`
+3. Em produção: `VITE_SENTRY_ENABLED=true`
+4. Configurar backups no Supabase Dashboard (Settings → Backups)
+
+---
+
+**Próximas etapas**: ETAPA 6 conforme plano de auditoria.
 
 ---
 

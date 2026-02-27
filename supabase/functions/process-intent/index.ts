@@ -1,13 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callLLM, requireLLMApiKey } from "../_shared/llm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
@@ -117,34 +117,6 @@ Analise as propostas recebidas e produza um código FINAL que:
 
 Responda APENAS com o código VibeCode final.`;
 
-// Helper: Lovable AI
-async function callLovableAI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
-    throw new Error(`AI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
-
 // STRICT VibeCode Validator
 function validatePERCode(code: string): { valid: boolean; errors: string[]; warnings: string[]; rulesPassed: number; totalRules: number } {
   const errors: string[] = [];
@@ -217,8 +189,8 @@ function validatePERCode(code: string): { valid: boolean; errors: string[]; warn
   });
   if (!hasInvalidFriction) rulesPassed++;
 
-  // PER-007: Event handlers exist
-  if (/^\s*on\s+[A-Z_]+\s*\{/m.test(code)) {
+  // PER-007: Event handlers exist (aceita on EVENTO, On evento, etc — case-insensitive, em qualquer posição)
+  if (/\bon\s+[A-Za-z0-9_]+\s*\{/i.test(code)) {
     rulesPassed++;
   } else {
     errors.push('PER-007: Falta handlers de evento (on EVENTO { })');
@@ -284,11 +256,12 @@ async function stage1Generation(intent: string): Promise<any[]> {
   const userPrompt = `**INTENÇÃO DO USUÁRIO:**
 ${intent}
 
-**INSTRUÇÕES:**
-1. Identifique os principais EVENTOS mencionados na intenção
-2. Para cada evento, defina estado e friction apropriados
-3. Use APENAS a sintaxe VibeCode: workflow, type, retention, on EVENTO { set state / set friction / increase friction }
-4. NÃO adicione: cell, state variables, trigger, when, cálculos, condicionais, operações matemáticas
+**INSTRUÇÕES (OBRIGATÓRIAS):**
+1. Identifique os principais EVENTOS mencionados na intenção (ex: SUBMIT_PEDIDO, CONFIRMAR_PAGAMENTO)
+2. Para CADA evento, crie um bloco "on EVENTO { }" com set state e/ou set friction
+3. OBRIGATÓRIO: pelo menos 2 blocos "on EVENTO_XYZ { }" — sem isso o código é rejeitado
+4. Use APENAS: workflow, type, retention, on EVENTO { set state / set friction / increase friction }
+5. Eventos em MAIÚSCULAS. NÃO use: cell, trigger, when, cálculos, condicionais
 
 **RESPONDA EXATAMENTE ASSIM:**
 
@@ -309,11 +282,16 @@ on EVENTO_2 {
 }
 \`\`\`
 
-**IMPORTANTE:** Siga EXATAMENTE o formato acima. Não invente sintaxe nova!`;
+**IMPORTANTE:** Siga EXATAMENTE o formato. Sem blocos "on EVENTO { }" o código é inválido!`;
 
-  const generationPromises = PERSONAS.map(async (persona) => {
+  // Sequencial com delay para evitar 429 (rate limit)
+  const DELAY_MS = 2000;
+  const results: any[] = [];
+  for (let i = 0; i < PERSONAS.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, DELAY_MS));
+    const persona = PERSONAS[i];
     try {
-      const response = await callLovableAI(persona.systemPrompt, userPrompt);
+      const { content: response } = await callLLM({ systemPrompt: persona.systemPrompt, userPrompt });
       let code = response;
       const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
       if (vibeCodeMatch) {
@@ -323,27 +301,26 @@ on EVENTO_2 {
         if (anyCodeMatch) code = anyCodeMatch[1].trim();
       }
       const validation = validatePERCode(code);
-      return {
+      results.push({
         personaId: persona.id,
         personaName: persona.name,
         code,
         validation,
         timestamp: new Date().toISOString()
-      };
+      });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Error with persona ${persona.id}:`, error);
-      return {
+      results.push({
         personaId: persona.id,
         personaName: persona.name,
         code: `// Erro ao gerar código: ${errorMessage}`,
         validation: { valid: false, errors: [errorMessage], warnings: [], rulesPassed: 0, totalRules: 8 },
         timestamp: new Date().toISOString()
-      };
+      });
     }
-  });
-
-  return Promise.all(generationPromises);
+  }
+  return results;
 }
 
 // Stage 2: Cross Evaluation with VibeCode-aware criteria
@@ -392,10 +369,10 @@ Responda em JSON:
 }`;
 
   try {
-    const evaluationResult = await callLovableAI(
-      'Você é um avaliador ESPECIALISTA em VibeCode. Penalize códigos que usam sintaxe inválida (cell, trigger, when, cálculos). Responda APENAS em JSON válido.',
-      evaluationPrompt
-    );
+    const { content: evaluationResult } = await callLLM({
+      systemPrompt: 'Você é um avaliador ESPECIALISTA em VibeCode. Penalize códigos que usam sintaxe inválida (cell, trigger, when, cálculos). Responda APENAS em JSON válido.',
+      userPrompt: evaluationPrompt,
+    });
     
     // Try to parse JSON from response
     const jsonMatch = evaluationResult.match(/\{[\s\S]*\}/);
@@ -479,7 +456,7 @@ on EVENTO {
 \`\`\``;
 
   try {
-    const response = await callLovableAI(CHAIRMAN_PROMPT, synthesisPrompt);
+    const { content: response } = await callLLM({ systemPrompt: CHAIRMAN_PROMPT, userPrompt: synthesisPrompt });
     
     // Extract code from response
     let finalCode = response;
@@ -538,12 +515,14 @@ async function directGeneration(intent: string): Promise<any> {
   const userPrompt = `**INTENÇÃO DO USUÁRIO:**
 ${intent}
 
-**INSTRUÇÕES:**
-1. Identifique os principais EVENTOS mencionados na intenção
-2. Para cada evento, defina estado e friction apropriados
-3. Use APENAS a sintaxe VibeCode: workflow, type, retention, on EVENTO { set state / set friction / increase friction }
+**INSTRUÇÕES (OBRIGATÓRIAS):**
+1. Identifique os principais EVENTOS mencionados na intenção (ex: SUBMIT_PEDIDO, CONFIRMAR_PAGAMENTO, CANCELAR)
+2. Para cada evento, crie um bloco "on EVENTO { }" com set state e/ou set friction
+3. OBRIGATÓRIO: pelo menos 2 blocos "on EVENTO_XYZ { }" — sem isso o código é inválido
+4. Use APENAS: workflow, type, retention, on EVENTO { set state = X / set friction = N / increase friction by N }
+5. Eventos em MAIÚSCULAS (ex: on SUBMIT_PEDIDO { })
 
-**RESPONDA EXATAMENTE ASSIM:**
+**RESPONDA EXATAMENTE ASSIM (nada além do bloco vibecode):**
 
 \`\`\`vibecode
 workflow NomeDescritivo
@@ -562,7 +541,7 @@ on EVENTO_2 {
 }
 \`\`\``;
 
-  const response = await callLovableAI(PERSONAS[0].systemPrompt, userPrompt);
+  const { content: response } = await callLLM({ systemPrompt: PERSONAS[0].systemPrompt, userPrompt });
   
   let code = response;
   const vibeCodeMatch = response.match(/```vibecode\s*\n([\s\S]+?)\n```/);
@@ -599,6 +578,8 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    requireLLMApiKey();
 
     console.log('Processing intent:', intent, skipCouncil ? '(direct mode)' : '(council mode)');
     

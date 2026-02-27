@@ -1,12 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callLLM, requireLLMApiKey } from "../_shared/llm.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
 const SYSTEM_PROMPT = `Você é um gerador de código React especializado. Sua função é criar componentes React COMPLETOS e FUNCIONAIS baseados na intenção do usuário.
 
@@ -64,9 +63,7 @@ serve(async (req) => {
   try {
     const { intent, vibeCode, type, currentCode, modification } = await req.json() as GenerateRequest;
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
+    requireLLMApiKey();
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -224,103 +221,95 @@ Gere o código React COMPLETO e VÁLIDO. O código será validado e qualquer err
     
     while (attempts < maxAttempts) {
       attempts++;
-      
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt + (attempts > 1 ? `\n\n⚠️ TENTATIVA ${attempts}: O código anterior tinha erros de sintaxe. ${lastError ? `Erro: ${lastError}` : ''} Por favor, gere código COMPLETO e VÁLIDO, verificando todas as strings, chaves e parênteses.` : '') }
-          ],
+
+      const retrySuffix = attempts > 1
+        ? `\n\n⚠️ TENTATIVA ${attempts}: O código anterior tinha erros de sintaxe. ${lastError ? `Erro: ${lastError}` : ''} Por favor, gere código COMPLETO e VÁLIDO, verificando todas as strings, chaves e parênteses.`
+        : '';
+
+      try {
+        const { raw: data } = await callLLM({
+          systemPrompt,
+          userPrompt: userPrompt + retrySuffix,
           tools,
           tool_choice,
-          max_tokens: 8192, // Aumentar limite de tokens
-        }),
-      });
+          max_tokens: 8192,
+        });
 
-      if (!response.ok) {
-        if (response.status === 429) {
+        // Prefer tool-calling output
+        const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall?.function?.arguments) {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            const componentCode = isModify ? args.updatedCode : args.componentCode;
+
+            // Validar sintaxe do código gerado
+            const validation = validateCodeSyntax(componentCode);
+            if (!validation.valid) {
+              lastError = validation.error || 'Erro de sintaxe';
+              console.warn(`Tentativa ${attempts}: Código inválido - ${lastError}`);
+              if (attempts < maxAttempts) {
+                continue; // Tentar novamente
+              } else {
+                // Na última tentativa, retornar mesmo com erro (melhor que nada)
+                console.error('Máximo de tentativas atingido. Retornando código com possível erro.');
+              }
+            }
+
+            const result = isModify
+              ? { updatedCode: args.updatedCode, changes: args.changes }
+              : {
+                  appName: args.appName,
+                  description: args.description,
+                  imports: args.imports,
+                  componentCode: args.componentCode,
+                  mockData: args.mockData,
+                };
+
+            return new Response(JSON.stringify(result), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          } catch (e) {
+            console.error('Tool args parse error:', e, toolCall.function.arguments);
+            lastError = 'Erro ao parsear resposta da IA';
+            if (attempts < maxAttempts) continue;
+          }
+        }
+
+        // Fallback (should be rare)
+        const content = data?.choices?.[0]?.message?.content ?? '';
+        if (attempts < maxAttempts) {
+          lastError = 'Resposta da IA não está no formato esperado';
+          continue;
+        }
+
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to parse structured response após múltiplas tentativas',
+            raw: content.substring(0, 500), // Limitar tamanho
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
+      } catch (llmError: unknown) {
+        const msg = llmError instanceof Error ? llmError.message : String(llmError);
+        if (msg.includes('429')) {
           return new Response(JSON.stringify({ error: 'Rate limit excedido. Tente novamente em alguns minutos.' }), {
             status: 429,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        if (response.status === 402) {
+        if (msg.includes('402')) {
           return new Response(JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos à sua conta.' }), {
             status: 402,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        const errorText = await response.text();
-        console.error('AI error:', response.status, errorText);
+        console.error('AI error:', msg);
         if (attempts < maxAttempts) {
-          lastError = `Erro HTTP ${response.status}`;
+          lastError = msg;
           continue;
         }
-        throw new Error(`AI API error: ${response.status}`);
+        throw llmError;
       }
-
-      const data = await response.json();
-
-      // Prefer tool-calling output
-      const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall?.function?.arguments) {
-        try {
-          const args = JSON.parse(toolCall.function.arguments);
-          const componentCode = isModify ? args.updatedCode : args.componentCode;
-          
-          // Validar sintaxe do código gerado
-          const validation = validateCodeSyntax(componentCode);
-          if (!validation.valid) {
-            lastError = validation.error || 'Erro de sintaxe';
-            console.warn(`Tentativa ${attempts}: Código inválido - ${lastError}`);
-            if (attempts < maxAttempts) {
-              continue; // Tentar novamente
-            } else {
-              // Na última tentativa, retornar mesmo com erro (melhor que nada)
-              console.error('Máximo de tentativas atingido. Retornando código com possível erro.');
-            }
-          }
-          
-          const result = isModify
-            ? { updatedCode: args.updatedCode, changes: args.changes }
-            : {
-                appName: args.appName,
-                description: args.description,
-                imports: args.imports,
-                componentCode: args.componentCode,
-                mockData: args.mockData,
-              };
-
-          return new Response(JSON.stringify(result), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        } catch (e) {
-          console.error('Tool args parse error:', e, toolCall.function.arguments);
-          lastError = 'Erro ao parsear resposta da IA';
-          if (attempts < maxAttempts) continue;
-        }
-      }
-      
-      // Fallback (should be rare)
-      const content = data?.choices?.[0]?.message?.content ?? '';
-      if (attempts < maxAttempts) {
-        lastError = 'Resposta da IA não está no formato esperado';
-        continue;
-      }
-      
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to parse structured response após múltiplas tentativas',
-          raw: content.substring(0, 500), // Limitar tamanho
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      );
     } // Fim do while loop
 
   } catch (error) {

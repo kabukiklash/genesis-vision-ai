@@ -66,7 +66,7 @@ npm install
 npm run dev
 ```
 
-O servidor padrão do Vite foi configurado para rodar em `http://localhost:8081`.
+O servidor padrão do Vite foi configurado para rodar em `http://localhost:8083`.
 
 ---
 
@@ -84,7 +84,7 @@ Para rodar/localizar as functions:
 - Migrações: `supabase/migrations/`
 
 As funções esperam que os seguintes secrets estejam configurados no projeto Supabase (via Dashboard ou CLI):
-- `LOVABLE_API_KEY`
+- `LLM_API_KEY` — Chave da API OpenAI (https://platform.openai.com/api-keys). Fallback: `LOVABLE_API_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
@@ -97,7 +97,7 @@ Consulte `PLANO_IMPLEMENTACAO.md` para os detalhes da Fase 1 (Configuração) e 
 - Vite + React + TypeScript
 - Tailwind CSS + shadcn-ui + Radix UI
 - Supabase (Postgres, Auth, Edge Functions)
-- Lovable AI Gateway (Gemini) para geração de VibeCode e código React
+- LLM configurável (OpenRouter/OpenAI etc.) para geração de VibeCode e código React
 
 ---
 
