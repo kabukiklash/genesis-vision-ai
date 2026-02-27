@@ -353,6 +353,7 @@ Gere o código React COMPLETO e VÁLIDO. O código será validado e qualquer err
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
+  } catch (error) {
     console.error('Generate app error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
