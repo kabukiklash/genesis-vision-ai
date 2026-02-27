@@ -76,6 +76,42 @@ export type Database = {
           },
         ]
       }
+      llm_providers: {
+        Row: {
+          api_key: string
+          api_url: string
+          created_at: string
+          id: string
+          is_active: boolean
+          model: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          api_url: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          model: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          api_url?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          model?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

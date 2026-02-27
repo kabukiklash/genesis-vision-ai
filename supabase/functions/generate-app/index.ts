@@ -88,8 +88,22 @@ serve(async (req): Promise<Response> => {
 
     const { intent, vibeCode, type, currentCode, modification } = await req.json() as GenerateRequest;
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    // Check for user's custom LLM provider
+    const { data: customProvider } = await supabaseClient
+      .from('llm_providers')
+      .select('api_url, api_key, model')
+      .eq('user_id', userData.user.id)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    const useCustom = customProvider?.api_url && customProvider?.api_key && customProvider?.model;
+    const aiUrl = useCustom ? customProvider.api_url : 'https://ai.gateway.lovable.dev/v1/chat/completions';
+    const aiKey = useCustom ? customProvider.api_key : LOVABLE_API_KEY;
+    const aiModel = useCustom ? customProvider.model : 'google/gemini-2.5-flash';
+
+    if (!aiKey) {
+      throw new Error('No AI API key available (configure a custom provider or check LOVABLE_API_KEY)');
     }
 
     let systemPrompt: string;
@@ -249,14 +263,14 @@ Gere o código React COMPLETO e VÁLIDO. O código será validado e qualquer err
     while (attempts < maxAttempts) {
       attempts++;
       
-      const response: Response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const response: Response = await fetch(aiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Authorization': `Bearer ${aiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: aiModel,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt + (attempts > 1 ? `\n\n⚠️ TENTATIVA ${attempts}: O código anterior tinha erros de sintaxe. ${lastError ? `Erro: ${lastError}` : ''} Por favor, gere código COMPLETO e VÁLIDO, verificando todas as strings, chaves e parênteses.` : '') }
